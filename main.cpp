@@ -2,7 +2,7 @@
 #include <vector>
 #include <random>
 #include <cmath>
-#include <assert.h>
+#include <cassert>
 #include <array>
 
 template <class ErrorType>
@@ -78,20 +78,20 @@ public:
 
 };
 
-enum StabiliserType{
-    X_MEASUREMENT = 1,
-    Z_MEASUREMENT= -1
-};
+//enum StabiliserType{
+//    X_MEASUREMENT = 1,
+//    Z_MEASUREMENT= -1
+//};
 
 //boolean 0 denote no error, 1 denotes error.
 class Stabiliser: public Code<int>{
 public:
     std::vector<std::array<int,2>> error_locations;
-    StabiliserType stabiliser_type;
+//    StabiliserType stabiliser_type;
     
 public:
     Stabiliser(int n_row, int n_col): Code(n_row, n_col){}
-    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type): Code(n_row, n_col), stabiliser_type(stabiliser_type){}
+//    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type): Code(n_row, n_col), stabiliser_type(stabiliser_type){}
     void induceError(double error_prob){
         assert(error_prob <= 1);
         std::random_device rd;
@@ -116,10 +116,19 @@ public:
         }
     }
 
+//    void printError(){
+//        this->getError();
+//        for (int i = 0; i < error_locations.size(); ++i) {
+//            printf("(%d, %d) ", error_locations[i][0], error_locations[i][1]);
+//        }
+//    }
     void printError(){
-        for (int i = 0; i < error_locations.size(); ++i) {
-            printf("(%d, %d) ", error_locations[i][0], error_locations[i][1]);
+        this->getError();
+        for (auto error: error_locations) {
+            printf("(%d, %d) ", error[0], error[1]);
+//            std::cout<<"("<<error[0]<<", "<<error[1]<<")";
         }
+        std::cout<<std::endl;
     }
 };
 
@@ -197,6 +206,8 @@ int main() {
     c.data.induceError(0.2, Z_ERROR);
     c.data.printCode();
     c.stabiliserUpdate();
+    c.stabiliserX.getError();
+    c.stabiliserX.printError();
     c.stabiliserX.printCode();
     c.stabiliserZ.printCode();
     c.printSurfaceCode();
