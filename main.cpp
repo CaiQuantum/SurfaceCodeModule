@@ -5,6 +5,18 @@
 #include <cassert>
 #include <array>
 
+template <class InputType> // printMatrix can be printed without specifying InputType, this is done using implicit instantiation
+void printMatrix(InputType M){
+    for (auto array: M){
+        for (auto element: array){
+            printf("%2d ", element);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+
 template <class ErrorType>
 class Code{
 public:
@@ -32,13 +44,7 @@ public:
     }
 
     void printCode(){
-        for(int i = 0; i < n_row; i++){
-            for(int j = 0; j < n_col; j++){
-                std::cout << code[i][j]<< " ";
-            }
-            std::cout << "\n";
-        }
-        std::cout << std::endl;
+        printMatrix(code);
     }
 };
 
@@ -116,19 +122,27 @@ public:
         }
     }
 
-//    void printError(){
-//        this->getError();
-//        for (int i = 0; i < error_locations.size(); ++i) {
-//            printf("(%d, %d) ", error_locations[i][0], error_locations[i][1]);
-//        }
-//    }
     void printError(){
         this->getError();
-        for (auto error: error_locations) {
-            printf("(%d, %d) ", error[0], error[1]);
-//            std::cout<<"("<<error[0]<<", "<<error[1]<<")";
+        for (auto error: error_locations) printf("(%d, %d) ", error[0], error[1]);
+        printf("\n");
+    }
+
+    std::vector<int> getErrorDistance(){
+        this->getError();
+        int size = error_locations.size();
+        std::vector<std::vector<int>> error_distance;
+        error_distance.resize(size);
+        for (int i = 0; i < size; ++i) {
+            error_distance[i].resize(size);
+            for (int j = 0; j < i ; ++j) {
+                int d = abs(error_locations[i][0] - error_locations[j][0]) +
+                        abs(error_locations[i][1] - error_locations[j][1]);
+                error_distance[i][j] = d;
+                error_distance[j][i] = d;
+            }
+            error_distance[i][i] = 0;
         }
-        std::cout<<std::endl;
     }
 };
 
@@ -206,13 +220,13 @@ int main() {
     c.data.induceError(0.2, Z_ERROR);
     c.data.printCode();
     c.stabiliserUpdate();
-    c.stabiliserX.getError();
     c.stabiliserX.printError();
     c.stabiliserX.printCode();
     c.stabiliserZ.printCode();
     c.printSurfaceCode();
-//    std::cout<<c(1,1)<<std::endl;
 }
+
+
 /*
  * What we want:
  *
