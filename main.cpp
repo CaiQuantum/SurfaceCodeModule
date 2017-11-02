@@ -140,25 +140,19 @@ public:
     void stabiliserUpdate(){
         for (int i = 0; i < data.n_row; i++) {
             for (int j = 0; j < data.n_col; j++) {
-                if (data.code[i][j] != NO_ERROR) {
-                    if (data.code[i][j] != X_ERROR){ //include both the case of Z_ERROR and Y_ERROR
+                if (data(i, j) != NO_ERROR) {
+                    if (data(i, j) != X_ERROR){ //include both the case of Z_ERROR and Y_ERROR
                         if (i%2 == 0) {
-//                            stabiliserX.code[i/2][j] ^= 1;
-//                            stabiliserX.code[i/2][(j+1)%stabiliserX.n_col] ^= 1;
                             stabiliserX(i/2,j) ^= 1;
                             stabiliserX(i/2,j+1) ^= 1;
                         }
                         else {
-//                            stabiliserX.code[((i+1)/2)%stabiliserX.n_row][j] ^= 1;
-//                            stabiliserX.code[((i-1)/2)%stabiliserX.n_row][j] ^= 1;
                             stabiliserX((i+1)/2,j) ^= 1;
                             stabiliserX((i-1)/2,j) ^= 1;
                         }
                     }
                     if (data.code[i][j] != Z_ERROR){
                         if (i%2 == 0) {
-//                            stabiliserZ.code[i/2][j] ^= 1;
-//                            stabiliserZ.code[(i/2-1)%stabiliserZ.n_row][j] ^= 1;
                             stabiliserZ(i/2,j) ^= 1;
                             stabiliserZ((i/2-1),j) ^= 1;
                         }
@@ -171,33 +165,18 @@ public:
             }
         }
     }
-//    void printSurfaceCode(){
-//        for (int i = 0; i < data.n_row; i++) {
-//            for (int j = 0; j < data.n_col; j++) {
-//                if (i%2 == 0) {
-//                    std::cout<<"\x1B[33m "<<stabiliserX.code[i/2][j]<< " \x1B[0m ";
-//                    std::cout<<data.code[i][j];
-//                }
-//                else {
-//                    std::cout<<data.code[i][j];
-//                    std::cout<<"\x1B[32m "<< stabiliserZ.code[(i-1)/2][j] << " \x1B[0m ";
-//                }
-//            }
-//            std::cout<<"\n";
-//        }
-//    }
 
 //red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
     void printSurfaceCode(){
         for (int i = 0; i < data.n_row; i++) {
             for (int j = 0; j < data.n_col; j++) {
                 if (i%2 == 0) {
-                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX.code[i/2][j]);
-                    printf("%2d ", data.code[i][j]);
+                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX(i/2, j));
+                    printf("%2d ", data(i, j));
                 }
                 else {
-                    printf("%2d ", data.code[i][j]);
-                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ.code[(i-1)/2][j]);
+                    printf("%2d ", data(i, j));
+                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ((i-1)/2, j));
                 }
             }
             printf("\n");
