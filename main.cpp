@@ -40,8 +40,6 @@ public:
     }
     ~Code() {}
 
-
-
     ErrorType& operator()(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
@@ -74,6 +72,11 @@ enum DataError{
     Y_ERROR = 2
 };
 
+enum StabiliserType{
+    X_STB = 1,
+    Z_STB= -1
+};
+
 class Data: public Code<DataError>{
 public:
     Data(int n_row, int n_col): Code(n_row, n_col){
@@ -100,13 +103,43 @@ public:
             }
         }
     }
+    std::array<int,3> neighbour(const char direction, int row, int col) {
+        std::array<int, 3> nb;
+        if (row%2 == 0) {
+            if (direction == 'N') nb = {row/2 - 1, col, (int)Z_STB};
+            else if (direction == 'S') nb = {row/2, col, (int)Z_STB};
+            else if (direction == 'W') nb = {row/2, col, (int)X_STB};
+            else if (direction == 'E') nb = {row/2, col+1, (int)X_STB};
+        }
+        else{
+            if (direction == 'N') nb = {(row-1)/2, col, (int)X_STB};
+            else if (direction == 'S') nb = {(row+1)/2, col, (int)X_STB};
+            else if (direction == 'W') nb = {row, col-1, (int)Z_STB};
+            else if (direction == 'E') nb = {row, col, (int)Z_STB};
+        }
+        return nb;
+    }
+//    std::array<int,2> neighbour(const StabiliserType stabiliser_type, int row, int col) {
+//        std::array<int, 2> nb;
+//
+//        if (row%2 == 0) {
+//            if (direction == 'N') nb = {row/2 - 1, col, (int)Z_STB};
+//            else if (direction == 'S') nb = {row/2, col, (int)Z_STB};
+//            else if (direction == 'W') nb = {row/2, col, (int)X_STB};
+//            else if (direction == 'E') nb = {row/2, col+1, (int)X_STB};
+//        }
+//        else{
+//            if (direction == 'N') nb = {(row-1)/2, col, (int)X_STB};
+//            else if (direction == 'S') nb = {(row+1)/2, col, (int)X_STB};
+//            else if (direction == 'W') nb = {row, col-1, (int)Z_STB};
+//            else if (direction == 'E') nb = {row, col, (int)Z_STB};
+//        }
+//        return nb;
+//    }
 
 };
 
-enum StabiliserType{
-    X_STB = 1,
-    Z_STB= -1
-};
+
 
 //boolean 0 denote no error, 1 denotes error.
 class Stabiliser: public Code<int>{
@@ -198,6 +231,7 @@ public:
     SurfaceCode(int n_row, int n_col): data(n_row, n_col), stabiliserX(n_row/2, n_col, X_STB),
                                                            stabiliserZ(n_row/2, n_col, Z_STB){}
 
+
     //here assume row 0 is X stabiliser, row 1 is Z stabliser, etc.
     void stabiliserUpdate(){
         for (int i = 0; i < data.n_row; i++) {
@@ -250,7 +284,7 @@ public:
         }
     }
 
-
+    //when annihilating errors, we aways go in row direction first, then in col direction.
     void fixError(){
         int n_error = stabiliserX.error_locations.size();
         PerfectMatching* pm = stabiliserX.getErrorMatching();
