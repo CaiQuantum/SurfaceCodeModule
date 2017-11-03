@@ -102,40 +102,6 @@ public:
             }
         }
     }
-    std::array<int,3> neighbour(const char direction, int row, int col) {
-        std::array<int, 3> nb;
-        if (row%2 == 0) {
-            if (direction == 'N') nb = {row/2 - 1, col, (int)Z_STB};
-            else if (direction == 'S') nb = {row/2, col, (int)Z_STB};
-            else if (direction == 'W') nb = {row/2, col, (int)X_STB};
-            else if (direction == 'E') nb = {row/2, col+1, (int)X_STB};
-        }
-        else{
-            if (direction == 'N') nb = {(row-1)/2, col, (int)X_STB};
-            else if (direction == 'S') nb = {(row+1)/2, col, (int)X_STB};
-            else if (direction == 'W') nb = {row, col-1, (int)Z_STB};
-            else if (direction == 'E') nb = {row, col, (int)Z_STB};
-        }
-        return nb;
-    }
-//    std::array<int,2> neighbour(const StabiliserType stabiliser_type, int row, int col) {
-//        std::array<int, 2> nb;
-//
-//        if (row%2 == 0) {
-//            if (direction == 'N') nb = {row/2 - 1, col, (int)Z_STB};
-//            else if (direction == 'S') nb = {row/2, col, (int)Z_STB};
-//            else if (direction == 'W') nb = {row/2, col, (int)X_STB};
-//            else if (direction == 'E') nb = {row/2, col+1, (int)X_STB};
-//        }
-//        else{
-//            if (direction == 'N') nb = {(row-1)/2, col, (int)X_STB};
-//            else if (direction == 'S') nb = {(row+1)/2, col, (int)X_STB};
-//            else if (direction == 'W') nb = {row, col-1, (int)Z_STB};
-//            else if (direction == 'E') nb = {row, col, (int)Z_STB};
-//        }
-//        return nb;
-//    }
-
 };
 
 
@@ -198,23 +164,6 @@ public:
 
         return pm;
     }
-    std::array<int,2> neighbour(const char direction, int row, int col) {
-        std::array<int, 2> nb_pos;
-        if (stabiliser_type == X_STB) {
-            if (direction == 'N') nb_pos = {2 * row - 1, col};
-            else if (direction == 'S') nb_pos = {2 * row + 1, col};
-            else if (direction == 'W') nb_pos = {2 * row, col - 1};
-            else if (direction == 'E') nb_pos = {2 * row, col};
-        }
-        if (stabiliser_type == Z_STB) {
-            if (direction == 'N') nb_pos = {2 * row, col};
-            else if (direction == 'S') nb_pos = {2 * row + 2, col};
-            else if (direction == 'W') nb_pos = {2 * row + 1, col};
-            else if (direction == 'E') nb_pos = {2 * row + 1, col + 1};
-        }
-        return nb_pos;
-    }
-
 };
 
 class SurfaceCode{
@@ -225,11 +174,21 @@ public:
 //    Stabiliser& stabiliserZ = stabiliser_array[1];
     Stabiliser stabiliserX;
     Stabiliser stabiliserZ;
+    int n_row;
+    int n_col;
 
 public:
-    SurfaceCode(int n_row, int n_col): data(n_row, n_col), stabiliserX(n_row/2, n_col, X_STB),
-                                                           stabiliserZ(n_row/2, n_col, Z_STB){}
+    SurfaceCode(int n_row, int n_col): n_row(n_row), n_col(2*n_col), data(n_row, n_col),
+                                       stabiliserX(n_row/2, n_col, X_STB), stabiliserZ(n_row/2, n_col, Z_STB){}
 
+    int& code(int row, int col){
+        row = (row% n_row + n_row)%n_row;
+        col = (col% n_col + n_col)%n_col;
+        if (row%2 == 0 and col%2 == 0) return stabiliserX.code[row/2][col/2];
+        else if (row%2 == 1 and col%2 == 1) return stabiliserZ.code[(row-1)/2][(col-1)/2];
+        else if (row%2 == 0) return data.code[row][(col-1)/2];
+        else if (row%2 == 1) return data.code[row][col/2];
+    }
 
     //here assume row 0 is X stabiliser, row 1 is Z stabliser, etc.
     void stabiliserUpdate(){
@@ -262,18 +221,17 @@ public:
     }
 
     void stabiliserUpdateSlow(){
-        std::array<char, 4> direction_array= {'N', 'S', 'E', 'W'};
+        std::vector<std::array<int, 2>> pos_array= {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
         int nX, nZ;
-        std::array<int, 2> pos;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
                 nX = 0;
                 nZ = 0;
-                for (char direction: direction_array){
-                    pos = stabiliserX.neighbour(direction, i, j);
-                    if (data(pos[0],pos[1]) == Z_ERROR or data(pos[0],pos[1]) == Y_ERROR) nX++;
-                    pos = stabiliserZ.neighbour(direction, i, j);
-                    if (data(pos[0],pos[1]) == X_ERROR or data(pos[0],pos[1]) == Y_ERROR) nZ++;
+                for (std::array<int,2> pos: pos_array){
+//                    pos = stabiliserX.neighbour(direction, i, j);
+                    if (code(2*i+pos[0],2*j+pos[1]) == Z_ERROR or code(2*i+pos[0],2*j+pos[1]) == Y_ERROR) nX++;
+//                    pos = stabiliserZ.neighbour(direction, i, j);
+                    if (code(2*i+1+pos[0],2*j+1+pos[1]) == X_ERROR or code(2*i+1+pos[0],2*j+1+pos[1]) == Y_ERROR) nZ++;
                 }
                 if (nX%2 == 1) stabiliserX(i,j) = 1;
                 else stabiliserX(i,j) = 0;
@@ -337,6 +295,9 @@ int main() {
     c.data.printCode();
     c.stabiliserUpdate();
     c.printSurfaceCode();
+//    c.code(0,1) = 3;
+//    c.printSurfaceCode();
+//    c.stabiliserX.printCode();
 //    std::array<int,2> pos = c.stabiliserX.neighbour('N', 0, 0);
 //    printf("(%d, %d)", pos[0], pos[1]);
     c.stabiliserX.reset();
