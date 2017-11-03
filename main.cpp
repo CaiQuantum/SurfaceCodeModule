@@ -22,25 +22,24 @@ void printMatrix(InputType M){
 }
 
 
-template <class ErrorType>
 class Code{
 public:
     int n_row;
     int n_col;
-    std::vector< std::vector<ErrorType>> code;
+    std::vector< std::vector<int>> code;
 public:
     Code(int n_row, int n_col): n_row(n_row),n_col(n_col){
         code.resize(n_row);
         for(int i = 0; i < n_row; i++){
             code[i].resize(n_col);
             for(int j = 0; j < n_col; j++){
-                code[i][j] = (ErrorType)0;
+                code[i][j] = (int)0;
             }
         }
     }
     ~Code() {}
 
-    ErrorType& operator()(int row, int col){
+    int& operator()(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
         return code[row][col];
@@ -59,7 +58,7 @@ public:
         for(int i = 0; i < n_row; i++){
             code[i].resize(n_col);
             for(int j = 0; j < n_col; j++){
-                code[i][j] = (ErrorType)0;
+                code[i][j] = (int)0;
             }
         }
     }
@@ -77,16 +76,16 @@ enum StabiliserType{
     Z_STB= -1
 };
 
-class Data: public Code<DataError>{
+class Data: public Code{
 public:
     Data(int n_row, int n_col): Code(n_row, n_col){
         assert(n_row%2 == 0);//for TORIC code, the number of rows and columns of data qubit must be even
         assert(n_col%2 == 0);
     }
 
-    void induceError(double error_prob, DataError ERROR){
+    void induceError(double error_prob, int ERROR){
         assert(error_prob <= 1);
-        DataError OTHER_ERROR = (DataError) -ERROR;
+        int OTHER_ERROR = (int) -ERROR;
 
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -142,7 +141,7 @@ public:
 
 
 //boolean 0 denote no error, 1 denotes error.
-class Stabiliser: public Code<int>{
+class Stabiliser: public Code{
 public:
     StabiliserType stabiliser_type;
     std::vector<std::array<int,2>> error_locations;
