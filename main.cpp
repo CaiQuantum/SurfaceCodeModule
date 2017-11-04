@@ -41,8 +41,7 @@ public:
             }
         }
     }
-    ~Code() {}
-
+//REMEMBER to add destructor.
     int& code(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
@@ -328,7 +327,7 @@ public:
                 min_path = stabiliser->minPath(stabiliser->error_locations[error],
                                                stabiliser->error_locations[paired_error]);
                 ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
-                hor_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
+                hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
                 start = {2* stabiliser->error_locations[error][0] + offset, 2* stabiliser->error_locations[error][1] + offset};
                 end = {2* stabiliser->error_locations[paired_error][0] + offset, 2* stabiliser->error_locations[paired_error][1] + offset};
@@ -338,18 +337,20 @@ public:
                 //situation is much more complicated when we need to cross the boundary.
                 ver_steps = 0;
                 hor_steps = 0;
-//                while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
-//                    if (direction(gen)){
-//                        code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
-//                        loc[0] += 2*ver_sign;
-//                        ver_steps +=1;
-//                    }
-//                    else{
-//                        code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
-//                        loc[1] += 2*hor_sign;
-//                        hor_steps +=1;
-//                    }
-//                }
+// ///////////////////// Comment out this section if we don't want error correction along random min path.
+                while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
+                    if (direction(gen)){
+                        code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
+                        loc[0] += 2*ver_sign;
+                        ver_steps +=1;
+                    }
+                    else{
+                        code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
+                        loc[1] += 2*hor_sign;
+                        hor_steps +=1;
+                    }
+                }
+// ///////////////////////////////
                 while (ver_steps < abs(min_path[0])){
                     code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
                     loc[0] += 2*ver_sign;
@@ -360,21 +361,6 @@ public:
                     loc[1] += 2*hor_sign;
                     hor_steps +=1;
                 }
-
-
-
-//                ///////////////////////
-//                for (int i = 0; i < abs(min_path[0]); ++i) {
-//                    code(start[0] + step_sign + 2*i*step_sign, start[1]) =
-//                            errorComposite(code(start[0] + step_sign + 2*i*step_sign, start[1]), ERROR);
-//                }
-//
-//                step_sign = -1 * getSign(min_path[1]);
-//                for (int j = 0; j < abs(min_path[1]); ++j) {
-//                    code(end[0], end[1] + step_sign + 2*j*step_sign) =
-//                            errorComposite(code(end[0], end[1] + step_sign + 2*j*step_sign), ERROR);
-//                }
-
 
 //                error_corrected.insert(error); //error is already iterated over, hence no need to check.
                 error_corrected.insert(paired_error);
@@ -409,13 +395,16 @@ int main() {
     c.data.printCode();
     c.stabiliserX.printCode();
     c.stabiliserZ.printCode();
-    c.data.induceError(0, X_ERROR);
+    c.data.induceError(0.1, X_ERROR);
     c.data.printCode();
     c.data.induceError(0.1, Z_ERROR);
     c.data.printCode();
     c.stabiliserUpdateSlow();
     c.printSurfaceCode();
     c.fixError(X_STB);
+    c.stabiliserUpdateSlow();
+    c.printSurfaceCode();
+    c.fixError(Z_STB);
     c.stabiliserUpdateSlow();
     c.printSurfaceCode();
     c.data.printCode();
