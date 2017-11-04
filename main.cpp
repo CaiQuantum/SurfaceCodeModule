@@ -21,28 +21,38 @@ void printMatrix(InputType M){
     printf("\n");
 }
 
+int getSign(int a){
+    return (a>0) - (a<0);
+}
 
 class Code{
+private:
+    std::vector< std::vector<int>> _code;
 public:
     int n_row;
     int n_col;
-    std::vector< std::vector<int>> code;
 public:
     Code(int n_row, int n_col): n_row(n_row),n_col(n_col){
-        code.resize(n_row);
+        _code.resize(n_row);
         for(int i = 0; i < n_row; i++){
-            code[i].resize(n_col);
+            _code[i].resize(n_col);
             for(int j = 0; j < n_col; j++){
-                code[i][j] = (int)0;
+                _code[i][j] = (int)0;
             }
         }
     }
     ~Code() {}
 
+    int& code(int row, int col){
+        row = (row% n_row + n_row)%n_row;
+        col = (col% n_col + n_col)%n_col;
+        return _code[row][col];
+    }
+
     int& operator()(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
-        return code[row][col];
+        return _code[row][col];
     }
 
     std::array<int, 2> idxTransform(int row, int col){
@@ -52,16 +62,37 @@ public:
     }
 
     void printCode(){
-        printMatrix(code);
+        printMatrix(_code);
     }
     void reset(){
         for(int i = 0; i < n_row; i++){
-            code[i].resize(n_col);
             for(int j = 0; j < n_col; j++){
-                code[i][j] = (int)0;
+                _code[i][j] = (int)0;
             }
         }
     }
+
+    int minLength(const int start, const int end, const int n_L){
+        int sign = (end > start) - (start > end);
+        int d_1 = end - start;
+        int d_2 = sign*(abs(d_1)-n_L);
+        if (abs(d_1) < abs(d_2)) return d_1;
+        else return d_2;
+    }
+
+    std::array<int, 2> minPath(std::array<int,2> start, std::array<int,2> end){
+        return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
+    }
+
+    int distance(std::array<int,2> loc1, std::array<int,2> loc2){
+        int d;
+        d = std::min(abs(loc1[0] - loc2[0]),
+                     n_row - abs(loc1[0] - loc2[0])) +
+            std::min(abs(loc1[1] - loc2[1]),
+                     n_col - abs(loc1[1] - loc2[1]));
+        return d;
+    }
+
 };
 
 enum DataError{
@@ -70,6 +101,26 @@ enum DataError{
     Z_ERROR = -1,
     Y_ERROR = 2
 };
+
+int errorComposite(int error0, int error1){
+    DataError error_f;
+    if (error0 == NO_ERROR) error_f = (DataError)error1;
+    else if (error0 == error1) error_f = NO_ERROR;
+    else if (error1 == X_ERROR){
+        if (error0 == Y_ERROR) error_f = Z_ERROR;
+        else error_f = Y_ERROR;
+    }
+    else if (error1 == Z_ERROR){
+        if (error0 == Y_ERROR) error_f = X_ERROR;
+        else error_f = Y_ERROR;
+    }
+    else if (error1 == Y_ERROR){
+        if (error0 == X_ERROR) error_f = Z_ERROR;
+        else error_f = X_ERROR;
+    }
+    else error_f = (DataError)error0;
+    return (int)error_f;
+}
 
 enum StabiliserType{
     X_STB = 1,
@@ -89,15 +140,17 @@ public:
 
         std::random_device rd;
         std::mt19937 gen(rd());
+//        std::mt19937 gen(4);
         std::binomial_distribution<> error_occur(1, error_prob);
 
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
                 if (error_occur(gen)){
-                    if (code[i][j] == NO_ERROR) code[i][j] = ERROR;
-                    else if (code[i][j] == ERROR) code[i][j] = NO_ERROR;
-                    else if (code[i][j] == OTHER_ERROR) code[i][j] = Y_ERROR;
-                    else code[i][j] = OTHER_ERROR;
+                    code(i, j) = errorComposite(code(i, j), ERROR);
+//                    if (code[i][j] == NO_ERROR) code[i][j] = ERROR;
+//                    else if (code[i][j] == ERROR) code[i][j] = NO_ERROR;
+//                    else if (code[i][j] == OTHER_ERROR) code[i][j] = Y_ERROR;
+//                    else code[i][j] = OTHER_ERROR;
                 }
             }
         }
@@ -124,7 +177,7 @@ public:
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
                 if (error_occur(gen)){
-                    code[i][j] = not code[i][j];
+                    code(i, j) = not code(i, j);
                 }
             }
         }
@@ -134,7 +187,7 @@ public:
 
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
-                if (code[i][j] != 0) {
+                if (code(i, j) != 0) {
                     error_locations.push_back({i,j});}
             }
         }
@@ -152,11 +205,11 @@ public:
 
         for (int i = 0; i < n_error; ++i) {
             for (int j = 0; j < i ; ++j) {
-                int d;
-                d = std::min(abs(error_locations[i][0] - error_locations[j][0]),
-                             n_row - abs(error_locations[i][0] - error_locations[j][0])) +
-                    std::min(abs(error_locations[i][1] - error_locations[j][1]),
-                             n_col - abs(error_locations[i][1] - error_locations[j][1]));
+                int d = distance(error_locations[i], error_locations[j]);
+//                d = std::min(abs(error_locations[i][0] - error_locations[j][0]),
+//                             n_row - abs(error_locations[i][0] - error_locations[j][0])) +
+//                    std::min(abs(error_locations[i][1] - error_locations[j][1]),
+//                             n_col - abs(error_locations[i][1] - error_locations[j][1]));
                 pm->AddEdge(error_label[i], error_label[j], d);
             }
         }
@@ -184,10 +237,10 @@ public:
     int& code(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
-        if (row%2 == 0 and col%2 == 0) return stabiliserX.code[row/2][col/2];
-        else if (row%2 == 1 and col%2 == 1) return stabiliserZ.code[(row-1)/2][(col-1)/2];
-        else if (row%2 == 0) return data.code[row][(col-1)/2];
-        else if (row%2 == 1) return data.code[row][col/2];
+        if (row%2 == 0 and col%2 == 0) return stabiliserX.code(row/2,col/2);
+        else if (row%2 == 1 and col%2 == 1) return stabiliserZ.code((row-1)/2, (col-1)/2);
+        else if (row%2 == 0) return data.code(row,(col-1)/2);
+        else if (row%2 == 1) return data.code(row, col/2);
     }
 
     //here assume row 0 is X stabiliser, row 1 is Z stabliser, etc.
@@ -205,7 +258,7 @@ public:
                             stabiliserX((i-1)/2,j) ^= 1;
                         }
                     }
-                    if (data.code[i][j] != Z_ERROR){
+                    if (data(i, j)!= Z_ERROR){
                         if (i%2 == 0) {
                             stabiliserZ(i/2,j) ^= 1;
                             stabiliserZ((i/2-1),j) ^= 1;
@@ -242,20 +295,87 @@ public:
     }
 
     //when annihilating errors, we aways go in row direction first, then in col direction.
-    void fixError(){
-        int n_error = stabiliserX.error_locations.size();
-        PerfectMatching* pm = stabiliserX.getErrorMatching();
+    void fixError(StabiliserType stabiliser_type){
+        Stabiliser* stabiliser;
+        DataError  ERROR;
+        int offset;
+        if (stabiliser_type == X_STB){
+            stabiliser = &stabiliserX;
+            ERROR = Z_ERROR;
+            offset = 0;
+        }
+        else{
+            stabiliser = &stabiliserZ;
+            ERROR = X_ERROR;
+            offset = 1;
+        }
+
+        PerfectMatching* pm = stabiliser->getErrorMatching();
+        int n_error = stabiliser->error_locations.size();
         std::vector <int> error_label;
+        std::array <int, 2> start, end, loc, min_path;
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::binomial_distribution<> direction(1, 0.5);
+
+
+        int  ver_sign, hor_sign, ver_steps, hor_steps;
         for (int k = 0; k < n_error; ++k) error_label.push_back(k);
-        std::set<int>error_corrected = {}; //std::array are implicitly copied.
+        std::set<int> error_corrected; //std::array are implicitly copied.
         for (int error: error_label){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
                 int paired_error = pm->GetMatch(error);
-//                std::array<int,2>
+                min_path = stabiliser->minPath(stabiliser->error_locations[error],
+                                               stabiliser->error_locations[paired_error]);
+                ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
+                hor_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
+
+                start = {2* stabiliser->error_locations[error][0] + offset, 2* stabiliser->error_locations[error][1] + offset};
+                end = {2* stabiliser->error_locations[paired_error][0] + offset, 2* stabiliser->error_locations[paired_error][1] + offset};
+                loc = start; //implicit copy of start
+
+                //We might want to use step_sign *loc[0] < step_sign * end[0] condition to substitue ver_steps. But the
+                //situation is much more complicated when we need to cross the boundary.
+                ver_steps = 0;
+                hor_steps = 0;
+//                while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
+//                    if (direction(gen)){
+//                        code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
+//                        loc[0] += 2*ver_sign;
+//                        ver_steps +=1;
+//                    }
+//                    else{
+//                        code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
+//                        loc[1] += 2*hor_sign;
+//                        hor_steps +=1;
+//                    }
+//                }
+                while (ver_steps < abs(min_path[0])){
+                    code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
+                    loc[0] += 2*ver_sign;
+                    ver_steps +=1;
+                }
+                while (hor_steps < abs(min_path[1])){
+                    code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
+                    loc[1] += 2*hor_sign;
+                    hor_steps +=1;
+                }
 
 
-//                code[error_locations[error][0]][error_locations[error][1]] ^= 1;
-//                code[error_locations[paired_error][0]][error_locations[paired_error][1]] ^= 1;
+
+//                ///////////////////////
+//                for (int i = 0; i < abs(min_path[0]); ++i) {
+//                    code(start[0] + step_sign + 2*i*step_sign, start[1]) =
+//                            errorComposite(code(start[0] + step_sign + 2*i*step_sign, start[1]), ERROR);
+//                }
+//
+//                step_sign = -1 * getSign(min_path[1]);
+//                for (int j = 0; j < abs(min_path[1]); ++j) {
+//                    code(end[0], end[1] + step_sign + 2*j*step_sign) =
+//                            errorComposite(code(end[0], end[1] + step_sign + 2*j*step_sign), ERROR);
+//                }
+
+
 //                error_corrected.insert(error); //error is already iterated over, hence no need to check.
                 error_corrected.insert(paired_error);
             }
@@ -289,21 +409,29 @@ int main() {
     c.data.printCode();
     c.stabiliserX.printCode();
     c.stabiliserZ.printCode();
-    c.data.induceError(0.2, X_ERROR);
+    c.data.induceError(0, X_ERROR);
     c.data.printCode();
-    c.data.induceError(0.2, Z_ERROR);
+    c.data.induceError(0.1, Z_ERROR);
     c.data.printCode();
-    c.stabiliserUpdate();
+    c.stabiliserUpdateSlow();
     c.printSurfaceCode();
+    c.fixError(X_STB);
+    c.stabiliserUpdateSlow();
+    c.printSurfaceCode();
+    c.data.printCode();
+
 //    c.code(0,1) = 3;
 //    c.printSurfaceCode();
 //    c.stabiliserX.printCode();
 //    std::array<int,2> pos = c.stabiliserX.neighbour('N', 0, 0);
 //    printf("(%d, %d)", pos[0], pos[1]);
-    c.stabiliserX.reset();
-    c.stabiliserZ.reset();
-    c.stabiliserUpdateSlow();
-    c.printSurfaceCode();
+
+//    c.stabiliserX.reset();
+//    c.stabiliserZ.reset();
+//    c.stabiliserUpdateSlow();
+//    c.printSurfaceCode();
+
+
 //    c.stabiliserX.printError();
 //    c.stabiliserX.printCode();
 //    c.stabiliserZ.printCode();
