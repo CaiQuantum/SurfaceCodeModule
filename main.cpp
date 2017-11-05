@@ -101,33 +101,6 @@ enum DataError{
     Y_ERROR = 2
 };
 
-//std::array<int, 2> errorVectorTrans(int error){
-//    if (error == NO_ERROR) return {0,0};
-//    else if (error == X_ERROR) return {1,0};
-//    else if (error == Z_ERROR) return {0,1};
-//    else if (error == Y_ERROR) return {1,1};
-//};
-//
-//int errorVectorTrans(std::array<int, 2> error){
-//    if (error[0] == 0){
-//        if (error[1] == 0) return NO_ERROR;
-//        else return Z_ERROR;
-//    }
-//    else{
-//        if (error[1] == 0) return X_ERROR;
-//        else return Y_ERROR;
-//    }
-//};
-//
-//int errorComposite(int error0, int error1){
-//    std::array<int, 2> error_array0 = errorVectorTrans(error0);
-//    std::array<int, 2> error_array1 = errorVectorTrans(error1);
-//    error_array0[0] ^= error_array1[0];
-//    error_array0[1] ^= error_array1[1];
-//    return errorVectorTrans(error_array0);
-//};
-
-
 int errorComposite(int error0, int error1){
     DataError error_f;
     if (error0 == NO_ERROR) error_f = (DataError)error1;
