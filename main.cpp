@@ -101,6 +101,33 @@ enum DataError{
     Y_ERROR = 2
 };
 
+//std::array<int, 2> errorVectorTrans(int error){
+//    if (error == NO_ERROR) return {0,0};
+//    else if (error == X_ERROR) return {1,0};
+//    else if (error == Z_ERROR) return {0,1};
+//    else if (error == Y_ERROR) return {1,1};
+//};
+//
+//int errorVectorTrans(std::array<int, 2> error){
+//    if (error[0] == 0){
+//        if (error[1] == 0) return NO_ERROR;
+//        else return Z_ERROR;
+//    }
+//    else{
+//        if (error[1] == 0) return X_ERROR;
+//        else return Y_ERROR;
+//    }
+//};
+//
+//int errorComposite(int error0, int error1){
+//    std::array<int, 2> error_array0 = errorVectorTrans(error0);
+//    std::array<int, 2> error_array1 = errorVectorTrans(error1);
+//    error_array0[0] ^= error_array1[0];
+//    error_array0[1] ^= error_array1[1];
+//    return errorVectorTrans(error_array0);
+//};
+
+
 int errorComposite(int error0, int error1){
     DataError error_f;
     if (error0 == NO_ERROR) error_f = (DataError)error1;
@@ -153,6 +180,10 @@ public:
                 }
             }
         }
+    }
+    bool hasLogicalError(){
+        //Identify the errors at the edges first. For logical error to exist, there must be at least one error each
+        // on left and right with similar row index or one error each at top and bottom with similar column index.
     }
 };
 
@@ -280,9 +311,7 @@ public:
                 nX = 0;
                 nZ = 0;
                 for (std::array<int,2> pos: pos_array){
-//                    pos = stabiliserX.neighbour(direction, i, j);
                     if (code(2*i+pos[0],2*j+pos[1]) == Z_ERROR or code(2*i+pos[0],2*j+pos[1]) == Y_ERROR) nX++;
-//                    pos = stabiliserZ.neighbour(direction, i, j);
                     if (code(2*i+1+pos[0],2*j+1+pos[1]) == X_ERROR or code(2*i+1+pos[0],2*j+1+pos[1]) == Y_ERROR) nZ++;
                 }
                 if (nX%2 == 1) stabiliserX(i,j) = 1;
@@ -408,32 +437,7 @@ int main() {
     c.stabiliserUpdateSlow();
     c.printSurfaceCode();
     c.data.printCode();
-
-//    c.code(0,1) = 3;
-//    c.printSurfaceCode();
-//    c.stabiliserX.printCode();
-//    std::array<int,2> pos = c.stabiliserX.neighbour('N', 0, 0);
-//    printf("(%d, %d)", pos[0], pos[1]);
-
-//    c.stabiliserX.reset();
-//    c.stabiliserZ.reset();
-//    c.stabiliserUpdateSlow();
-//    c.printSurfaceCode();
-
-
-//    c.stabiliserX.printError();
-//    c.stabiliserX.printCode();
-//    c.stabiliserZ.printCode();
-//    c.printSurfaceCode();
-
-
-//    c.stabiliserX.fixError();
-//    c.stabiliserZ.fixError();
-//    c.stabiliserX.printCode();
-//    c.stabiliserZ.printCode();
-//    c.printSurfaceCode();
 }
-
 
 /*
  * What we want:
