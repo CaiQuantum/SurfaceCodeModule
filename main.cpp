@@ -101,6 +101,10 @@ enum DataError{
     Y_ERROR = 2
 };
 
+bool isError(int code_value, int error){
+    return code_value == error or code_value == 2;
+}
+
 int errorComposite(int error0, int error1){
     DataError error_f;
     if (error0 == NO_ERROR) error_f = (DataError)error1;
@@ -140,9 +144,9 @@ public:
         assert(error_prob <= 1);
         int OTHER_ERROR = (int) -ERROR;
 
-//        std::random_device rd;
-//        std::mt19937 gen(rd());
-        std::mt19937 gen(4);
+        std::random_device rd;
+        std::mt19937 gen(rd());
+//        std::mt19937 gen(4);
         std::binomial_distribution<> error_occur(1, error_prob);
 
         for(int i = 0; i < n_row; i++){
@@ -247,10 +251,9 @@ public:
     Stabiliser stabiliserZ;
     int n_row;
     int n_col;
-
 private:
-    std::array<int, 2> error_chain_start;
-    std::vector<std::array<int, 2>> errors_visited;
+    std::array<int,2> error_chain_target;
+
 public:
     SurfaceCode(int n_row, int n_col): n_row(n_row), n_col(2*n_col), data(n_row, n_col),
                                        stabiliserX(n_row/2, n_col, X_STB), stabiliserZ(n_row/2, n_col, Z_STB){}
@@ -386,71 +389,119 @@ public:
             }
         }
     }
-
-    bool findPath(int row, int col, int error){ // row and col are coor in the surface code grid.
-       /** Accept case - we found the exit **/
-        if (row == error_chain_start[0] and col == error_chain_start[1]) return true;
-//        else if (code(row, col) == 19) code(row, col) +=1;
-
-        /** Reject case - we hit a wall or our path **/
-        if (code(row, col) != error and code(row, col) != 2) return false;
-
-        /** Backtracking Step **/
-
-        // Mark this location as part of our path
-        code(row, col) += 10;
-
-        std::cout<<error;
-
-        std::vector<std::array<int,2>> nb_loc;
-        if (error == -1){
-            if (row%2 == 0) nb_loc = {{row, col +2}, {row -1, col +1},{row+1, col+1}};
-            else nb_loc = {{row+2, col}, {row +1, col -1},{row+1, col+1}};
-        }
-        else if (error == 1){
-            if (row%2 == 1) nb_loc = {{row, col +2}, {row -1, col +1},{row+1, col+1}};
-            else nb_loc = {{row+2, col}, {row +1, col -1},{row+1, col+1}};
-        }
-        //Continue with our path
-        for (std::array<int,2> loc: nb_loc){
-            if (findPath(loc[0], loc[1], error)) return true;
-        }
-
-        /** Deadend - this location can't be part of the solution **/
-
-        // Unmark this location
-//        code(row, col) -= 10;
-
-        // Go back
-        return false;
-    }
+    /*
+     * We mark the endpoint using 30
+     * when we visit a point, we add 10 to it.
+     * 1 ->11, -1 -> 9, 2 -> 12
+     * when starting point and end point are different, we leave the starting point as it is, and a 10 will be added onto
+     * it since we've visited it just like any other point on the path.
+     *
+     * when the starting point and the end point at the same. We set the starting point to be 20. After we first visited it
+     * 10 is added to the starting point and it becomes 30, which is the end point.
+     *
+     * we use error_chain_target to denote the end point instead of using some special number. This is because
+     * when we want to use the starting point as endpoint, then the error chain will end at the starting point
+     */
 
 
+//    bool findPath(int row, int col, int error){ // row and col are coor in the surface code grid.
+//       /** Accept case - we found the exit **/
+//        if (code(row, col) == 30) return true;
+// //        else if (code(row, col) == 19) code(row, col) +=1;
+//
+//        /** Reject case - we hit a wall or our path **/
+//        if (code(row, col) != error and code(row, col) != 2 and code(row, col) != 20) return false;
+//
+//        /** Backtracking Step **/
+//
+//        // Mark this location as part of our path
+//        code(row, col) += 10;
+//
+//        std::cout<<error;
+//
+//        std::vector<std::array<int,2>> nb_loc;
+//        if (error == -1){
+//            if (row%2 == 0) nb_loc = {{row, col +2}, {row -1, col +1},{row+1, col+1}};
+//            else nb_loc = {{row+2, col}, {row +1, col -1},{row+1, col+1}};
+//        }
+//        else if (error == 1){
+//            if (row%2 == 1) nb_loc = {{row, col +2}, {row -1, col +1},{row+1, col+1}};
+//            else nb_loc = {{row+2, col}, {row +1, col -1},{row+1, col+1}};
+//        }
+//        //Continue with our path
+//        for (std::array<int,2> loc: nb_loc){
+//            if (findPath(loc[0], loc[1], error)) return true;
+//        }
+//
+//        /** Deadend - this location can't be part of the solution **/
+//
+//        // Unmark this location
+// //        code(row, col) -= 10;
+//
+//        // Go back
+//        return false;
+//    }
+//
+//
+//
+//
+
+//    int hasLogicalError(StabiliserType stb){
+//        std::vector< std::vector<int>> data_copy = data._code; //implicit copy of vector.
+//        int error;
+//        int n_logical_error = 0;
+//
+//        if (stb == X_STB) error = -1;
+//        else if (stb == Z_STB) error = 1;
+//
+//        for (int i = 0; i < n_row; i++) {
+//            for (int j = 0; j < n_col; j++) {
+//                if (isError(code(i,j), error)) {
+//                    code(i,j) = 20;
+//                    if(findPath(i,j,error)) n_logical_error+=1;
+//                }
+//            }
+//        }
+//        data._code = data_copy;
+//        //Identify the errors at the edges first. For logical error to exist, there must be at least one error each
+//        // on left and right with similar row index or one error each at top and bottom with similar column index.
+//        return n_logical_error;
+//    }
 
 
-    //20: starting point of error chain.
-    //when we visit a point, we add 10 to it.
-    //1 ->11, -1 -> 9, 2 -> 12
-    int hasLogicalError(StabiliserType stb){
+// Simply counting the number of error in each row or col is not a good way because this fail when there is a portion of
+// path running along the line that we are testing.
+// way to counter this: testing along more rows? (NOT conclusive)
+// A better way is to track along the path that run along the row?
+// The portion of path can be identified by looking at consecutive error along one row.
+
+/* For X_stb, we count along the row 1, for which Z_errors cannot run along the row (unlike row 0
+ * for which Z_errors can run along the row going through X_stb.
+ * Similarly for Z_stb
+ * */
+    bool hasLogicalError(StabiliserType stb){
         std::vector< std::vector<int>> data_copy = data._code; //implicit copy of vector.
-        int error;
-        int n_logical_error = 0;
-
-        if (stb == X_STB) error = -1;
-        else if (stb == Z_STB) error = 1;
-
-        for (int i = 0; i < n_row; i++) {
-            for (int j = 0; j < n_col; j++) {
-                if (code(i, j) == error or code(i, j) == 2) {
-                    error_chain_start = {i,j};
-                    if(findPath(i,j,error)) n_logical_error+=1;
-                }
+        int n_v_error = 0;
+        int n_h_error = 0;
+        if (stb == X_STB){
+            for (int j = 0; j < n_col; j +=2) {
+                if (isError(code(1,j), -1)) n_v_error++; // check horizontally if any vertical error cuts through
+            }
+            for (int i = 0; i < n_row; i += 2) {
+                if (isError(code(i,1), -1)) n_h_error++;
             }
         }
-        data._code = data_copy;
-        //Identify the errors at the edges first. For logical error to exist, there must be at least one error each
-        // on left and right with similar row index or one error each at top and bottom with similar column index.
-        return n_logical_error;
+        else if (stb == Z_STB){
+            for (int j = 1; j < n_col; j +=2) {
+                if (isError(code(0,j), 1)) n_v_error++;
+            }
+            for (int i = 1; i < n_row; i += 2) {
+                if (isError(code(i,0), 1)) n_h_error++;
+            }
+        }
+        printf("there are %d horizontal logical errors\n", n_h_error%2);
+        printf("there are %d vertical logical errors\n", n_v_error%2);
+        return ((n_h_error%2) or (n_v_error%2));
     }
 
 
@@ -493,13 +544,15 @@ int main() {
     c.fixError(Z_STB);
     c.stabiliserUpdateSlow();
     c.printSurfaceCode();
-    c.data.printCode();
-//    int X_log_error = c.hasLogicalError(X_STB);
-//    printf("there are %d X logical errors\n", X_log_error);
-//    c.printSurfaceCode();
+//    c.data.printCode();
+    int X_log_error = c.hasLogicalError(X_STB);
+    printf("there are %d X logical errors\n", X_log_error);
+    printf("\n");
     int Z_log_error = c.hasLogicalError(Z_STB);
     printf("there are %d Z logical errors\n", Z_log_error);
-    c.printSurfaceCode();
+//    c.printSurfaceCode();
+//    int Z_log_error = c.hasLogicalError(Z_STB);
+//    printf("there are %d Z logical errors\n", Z_log_error);
 
 //    c.data.printErrorLoc();
 }
