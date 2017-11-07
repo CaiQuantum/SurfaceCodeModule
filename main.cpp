@@ -269,37 +269,7 @@ public:
         else return data.code(row, col/2); //equivalent to else if (row%2 == 1)
     }
 
-    //here assume row 0 is X stabiliser, row 1 is Z stabliser, etc.
     void stabiliserUpdate(){
-        for (int i = 0; i < data.n_row; i++) {
-            for (int j = 0; j < data.n_col; j++) {
-                if (data(i, j) != NO_ERROR) {
-                    if (data(i, j) != X_ERROR){ //include both the case of Z_ERROR and Y_ERROR
-                        if (i%2 == 0) {
-                            stabiliserX(i/2,j) ^= 1;
-                            stabiliserX(i/2,j+1) ^= 1;
-                        }
-                        else {
-                            stabiliserX((i+1)/2,j) ^= 1;
-                            stabiliserX((i-1)/2,j) ^= 1;
-                        }
-                    }
-                    if (data(i, j)!= Z_ERROR){
-                        if (i%2 == 0) {
-                            stabiliserZ(i/2,j) ^= 1;
-                            stabiliserZ((i/2-1),j) ^= 1;
-                        }
-                        else {
-                            stabiliserZ((i-1)/2, j) ^= 1;
-                            stabiliserZ((i-1)/2, j-1) ^= 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    void stabiliserUpdateSlow(){
         std::vector<std::array<int, 2>> pos_array= {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
         int nX, nZ;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
@@ -458,7 +428,7 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
     for (int i = 0; i < n_runs; ++i) {
         ToricCode c(L*2, L);
         c.data.induceError(data_error_rate);
-        c.stabiliserUpdateSlow();
+        c.stabiliserUpdate();
         c.fixError();
         logical_errors_counter += c.hasLogicalError();
 //        printf("Run %d with error rate %.2f, error counter is at %d \n", i, data_error_rate, logical_errors_counter);
@@ -469,7 +439,7 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
 void errorDataOutput(int n_runs){
 //    std::vector<double> log_error_array;
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.1; data_error_rate <= 0.2; data_error_rate += 0.01) {
+    for (double data_error_rate = 0.09; data_error_rate <= 0.12; data_error_rate += 0.005) {
         data_error_rate_array.push_back(data_error_rate);
     }
     // we can add more entry to data error rate array
@@ -484,7 +454,8 @@ void errorDataOutput(int n_runs){
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
         for (int code_size: code_size_array){
-            printf("calculating avg log errors for code size %d with data error rate %.2f\n", code_size, data_error_rate);
+            printf("calculating avg log errors for code size %d with data error rate %.3f\n", code_size, data_error_rate);
+            fflush(stdout);
             avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
             file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
             file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
