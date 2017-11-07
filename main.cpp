@@ -6,6 +6,7 @@
 #include <array>
 #include <set>
 #include "PerfectMatching.h"
+#include <fstream>
 //To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
 //triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
 //the unwanted files.
@@ -132,7 +133,6 @@ enum StabiliserType{
 
 class Data: public Code{
 public:
-    StabiliserType stabiliser_type;
     std::array<std::vector<std::array<int,2>>,2> error_locations;
 public:
     Data(int n_row, int n_col): Code(n_row, n_col){
@@ -142,7 +142,7 @@ public:
 
     void induceError(double error_prob, int ERROR){
         assert(error_prob <= 1);
-        int OTHER_ERROR = (int) -ERROR;
+        auto OTHER_ERROR = (int) -ERROR;
 
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -156,6 +156,10 @@ public:
                 }
             }
         }
+    }
+    void induceError(double error_prob){
+        induceError(error_prob, X_ERROR);
+        induceError(error_prob, Z_ERROR);
     }
     void getErrorLoc(){
         for (int i = 0; i < n_row; i++) {
@@ -222,11 +226,11 @@ public:
     PerfectMatching* getErrorMatching(){
         getErrorLoc();
         int n_error = error_locations.size();
-        std::vector <int> error_label;
-        for (int k = 0; k < n_error; ++k) error_label.push_back(k);
+        std::vector <int> error_label(n_error);
+        for (int k = 0; k < n_error; ++k) error_label[k] = k;
 
         int n_edges = n_error*(n_error-1)/2;
-        PerfectMatching *pm = new PerfectMatching(n_error, n_edges);
+        auto *pm = new PerfectMatching(n_error, n_edges);
 
         struct PerfectMatching::Options options;
         options.verbose = false;
@@ -244,18 +248,16 @@ public:
     }
 };
 
-class SurfaceCode{
+class ToricCode{
 public:
     Data data;
     Stabiliser stabiliserX;
     Stabiliser stabiliserZ;
     int n_row;
     int n_col;
-private:
-    std::array<int,2> error_chain_target;
 
 public:
-    SurfaceCode(int n_row, int n_col): n_row(n_row), n_col(2*n_col), data(n_row, n_col),
+    ToricCode(int n_row, int n_col): n_row(n_row), n_col(2*n_col), data(n_row, n_col),
                                        stabiliserX(n_row/2, n_col, X_STB), stabiliserZ(n_row/2, n_col, Z_STB){}
 
     int& code(int row, int col){
@@ -264,7 +266,7 @@ public:
         if (row%2 == 0 and col%2 == 0) return stabiliserX.code(row/2,col/2);
         else if (row%2 == 1 and col%2 == 1) return stabiliserZ.code((row-1)/2, (col-1)/2);
         else if (row%2 == 0) return data.code(row,(col-1)/2);
-        else if (row%2 == 1) return data.code(row, col/2);
+        else return data.code(row, col/2); //equivalent to else if (row%2 == 1)
     }
 
     //here assume row 0 is X stabiliser, row 1 is Z stabliser, etc.
@@ -335,7 +337,7 @@ public:
         PerfectMatching* pm = stabiliser->getErrorMatching();
         int n_error = stabiliser->error_locations.size();
         std::vector <int> error_label;
-        std::array <int, 2> start, end, loc, min_path;
+        std::array <int, 2> start, loc, min_path;
         std::random_device rd;
         std::mt19937 gen(rd());
         std::binomial_distribution<> direction(1, 0.5);
@@ -353,7 +355,6 @@ public:
                 hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
                 start = {2* stabiliser->error_locations[error][0] + offset, 2* stabiliser->error_locations[error][1] + offset};
-                end = {2* stabiliser->error_locations[paired_error][0] + offset, 2* stabiliser->error_locations[paired_error][1] + offset};
                 loc = start; //implicit copy of start
 
                 //We might want to use step_sign *loc[0] < step_sign * end[0] condition to substitue ver_steps. But the
@@ -387,9 +388,13 @@ public:
                 error_corrected.insert(paired_error); //we did not add error because error is already iterated over.
             }
         }
+        delete pm;
     }
 
-
+    void fixError(){
+        fixError(X_STB);
+        fixError(Z_STB);
+    }
 // Simply counting the number of error in each row or col is not a good way because this fail when there is a portion of
 // path running along the line that we are testing.
 // way to counter this: testing along more rows? (NOT conclusive)
@@ -401,7 +406,6 @@ public:
  * Similarly for Z_stb
  * */
     bool hasLogicalError(StabiliserType stb){
-        std::vector< std::vector<int>> data_copy = data._code; //implicit copy of vector.
         int n_v_error = 0;
         int n_h_error = 0;
         if (stb == X_STB){
@@ -420,14 +424,17 @@ public:
                 if (isError(code(i,0), 1)) n_h_error++;
             }
         }
-        printf("there are %d horizontal logical errors\n", n_h_error%2);
-        printf("there are %d vertical logical errors\n", n_v_error%2);
+//        printf("there are %d horizontal logical errors\n", n_h_error%2);
+//        printf("there are %d vertical logical errors\n", n_v_error%2);
         return ((n_h_error%2) or (n_v_error%2));
     }
 
+    bool hasLogicalError(){
+        return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
+    }
 
 //red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
-    void printSurfaceCode(){
+    void printCode(){
         for (int i = 0; i < data.n_row; i++) {
             for (int j = 0; j < data.n_col; j++) {
                 if (i%2 == 0) {
@@ -443,39 +450,112 @@ public:
         }
         printf("\n");
     }
-
-
 };
 
+double averageLogicalError(int L, double data_error_rate, int n_runs){
+
+    int logical_errors_counter = 0;
+    for (int i = 0; i < n_runs; ++i) {
+        ToricCode c(L*2, L);
+        c.data.induceError(data_error_rate);
+        c.stabiliserUpdateSlow();
+        c.fixError();
+        logical_errors_counter += c.hasLogicalError();
+//        printf("Run %d with error rate %.2f, error counter is at %d \n", i, data_error_rate, logical_errors_counter);
+    }
+    return (double)logical_errors_counter/(double)n_runs;
+}
+
+void errorDataOutput(int n_runs, int output_mode = 0){
+//    std::vector<double> log_error_array;
+    std::vector<double> data_error_rate_array;
+    for (double data_error_rate = 0.1; data_error_rate <= 0.2; data_error_rate += 0.01) {
+        data_error_rate_array.push_back(data_error_rate);
+    }
+    // we can add more entry to data error rate array
+    std::vector<int> code_size_array;
+    for (int code_size = 8; code_size <= 32; code_size *= 2) {
+        code_size_array.push_back(code_size);
+    }
+    // we can add more entry to data error rate array
+    std::ofstream file;
+    char filename[50];// this is called buffer, it must be large enough to hold the string.
+    if (output_mode == 0) {
+        sprintf(filename, "../data_files/ErrorData_%druns.txt", n_runs);
+        file.open(filename,
+                  std::fstream::out | std::ofstream::trunc); // out create the file, trunc clear the content of the file
+    }
+    else {
+        sprintf(filename, "../data_files/CumulativeErrorData.txt");
+    }
+
+
+    double avg_log_error;
+    if (output_mode == 0) printf("      ");
+    for (int code_size: code_size_array){
+        if (output_mode == 0) {
+            file << code_size << "  ";
+            printf("%4d  ", code_size);
+            fflush(stdout);
+        }
+    }
+    file<<std::endl;
+    printf("\n");
+    for (double data_error_rate : data_error_rate_array) {
+        if (output_mode == 0) {
+            file << data_error_rate << "  ";
+            printf("%.2f  ", data_error_rate);
+        }
+        for (int code_size: code_size_array){
+            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
+            if (output_mode == 0) {
+                file << avg_log_error << "  ";
+                printf("%.2f  ", avg_log_error);
+                fflush(stdout);
+            }
+            else{
+                file.open(filename, std::fstream::out);
+                file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
+                file.close();
+                printf("calculating avg log errors for code size %d with data error rate %.2f\n", code_size, data_error_rate);
+            }
+        }
+        if (output_mode == 0) {
+            file<< std::endl;
+            printf("\n");
+        }
+    }
+
+}
 
 int main() {
-    SurfaceCode c(8, 4);
-    c.data.printCode();
-    c.stabiliserX.printCode();
-    c.stabiliserZ.printCode();
-    c.data.induceError(0.1, X_ERROR);
-    c.data.printCode();
-    c.data.induceError(0.1, Z_ERROR);
-    c.data.printCode();
-    c.stabiliserUpdateSlow();
-    c.printSurfaceCode();
-    c.fixError(X_STB);
-    c.stabiliserUpdateSlow();
-    c.printSurfaceCode();
-    c.fixError(Z_STB);
-    c.stabiliserUpdateSlow();
-    c.printSurfaceCode();
+//    SurfaceCode c(8, 4);
 //    c.data.printCode();
-    int X_log_error = c.hasLogicalError(X_STB);
-    printf("there are %d X logical errors\n", X_log_error);
-    printf("\n");
-    int Z_log_error = c.hasLogicalError(Z_STB);
-    printf("there are %d Z logical errors\n", Z_log_error);
+//    c.stabiliserX.printCode();
+//    c.stabiliserZ.printCode();
+//    c.data.induceError(0.1);
+//    c.data.printCode();
+//    c.stabiliserUpdateSlow();
+//    c.printSurfaceCode();
+//    c.fixError();
+//    c.stabiliserUpdateSlow();
+//    c.printSurfaceCode();
+//    c.data.printCode();
+//    int X_log_error = c.hasLogicalError(X_STB);
+//    printf("there are %d X logical errors\n", X_log_error);
+//    printf("\n");
+//    int Z_log_error = c.hasLogicalError(Z_STB);
+//    printf("there are %d Z logical errors\n", Z_log_error);
+
+//    double avg_errors = averageLogicalError(8, 0.1, 10000);
+//    std::cout<< avg_errors;
+    errorDataOutput(100, 1);
 //    c.printSurfaceCode();
 //    int Z_log_error = c.hasLogicalError(Z_STB);
 //    printf("there are %d Z logical errors\n", Z_log_error);
 
 //    c.data.printErrorLoc();
+    return 0;
 }
 
 /*
