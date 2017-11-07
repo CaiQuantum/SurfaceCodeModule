@@ -466,7 +466,7 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
     return (double)logical_errors_counter/(double)n_runs;
 }
 
-void errorDataOutput(int n_runs, int output_mode = 0){
+void errorDataOutput(int n_runs){
 //    std::vector<double> log_error_array;
     std::vector<double> data_error_rate_array;
     for (double data_error_rate = 0.1; data_error_rate <= 0.2; data_error_rate += 0.01) {
@@ -479,53 +479,18 @@ void errorDataOutput(int n_runs, int output_mode = 0){
     }
     // we can add more entry to data error rate array
     std::ofstream file;
-    char filename[50];// this is called buffer, it must be large enough to hold the string.
-    if (output_mode == 0) {
-        sprintf(filename, "../data_files/ErrorData_%druns.txt", n_runs);
-        file.open(filename,
-                  std::fstream::out | std::ofstream::trunc); // out create the file, trunc clear the content of the file
-    }
-    else {
-        sprintf(filename, "../data_files/CumulativeErrorData.txt");
-    }
-
+    char filename[] = "../data_files/CumulativeErrorData.txt";// this is called buffer, it must be large enough to hold the string.
 
     double avg_log_error;
-    if (output_mode == 0) printf("      ");
-    for (int code_size: code_size_array){
-        if (output_mode == 0) {
-            file << code_size << "  ";
-            printf("%4d  ", code_size);
-            fflush(stdout);
-        }
-    }
-    file<<std::endl;
-    printf("\n");
     for (double data_error_rate : data_error_rate_array) {
-        if (output_mode == 0) {
-            file << data_error_rate << "  ";
-            printf("%.2f  ", data_error_rate);
-        }
         for (int code_size: code_size_array){
+            printf("calculating avg log errors for code size %d with data error rate %.2f\n", code_size, data_error_rate);
             avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
-            if (output_mode == 0) {
-                file << avg_log_error << "  ";
-                printf("%.2f  ", avg_log_error);
-                fflush(stdout);
-            }
-            else{
-                file.open(filename, std::fstream::out);
-                file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
-                file.close();
-                printf("calculating avg log errors for code size %d with data error rate %.2f\n", code_size, data_error_rate);
-            }
-        }
-        if (output_mode == 0) {
-            file<< std::endl;
-            printf("\n");
+            file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
+            file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            file.close();
         }
     }
-
 }
 
 int main() {
@@ -549,7 +514,7 @@ int main() {
 
 //    double avg_errors = averageLogicalError(8, 0.1, 10000);
 //    std::cout<< avg_errors;
-    errorDataOutput(100, 1);
+    errorDataOutput(10);
 //    c.printSurfaceCode();
 //    int Z_log_error = c.hasLogicalError(Z_STB);
 //    printf("there are %d Z logical errors\n", Z_log_error);
