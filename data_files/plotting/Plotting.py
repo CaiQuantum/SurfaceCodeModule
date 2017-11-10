@@ -36,6 +36,7 @@ df.columns.name = 'code size'
 df.columns = df.columns.map(int)
 print(df)
 
+df = df[[12,16,20,24]]
 size_list = df.columns
 error_list= df.index
 fig, ax = plt.subplots(1)
@@ -43,7 +44,7 @@ for size in size_list:
     ax.plot(error_list, df[size], label=size)
 ax.set_xlabel('data error rate')
 ax.set_ylabel('logical error rate')
-ax.set_xlim([0.09,0.12])
+# ax.set_xlim([0.09,0.12])
 ax.legend()
 fig.tight_layout()
 plt.show(block = False)

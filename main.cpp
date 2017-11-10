@@ -64,7 +64,7 @@ public:
     void printCode(){
         printMatrix(_code);
     }
-    void reset(){
+    void resetCode(){
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
                 _code[i][j] = (int)0;
@@ -84,7 +84,19 @@ public:
         return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
     }
 
+    std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
+        return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
+    }
+
     int distance(std::array<int,2> loc1, std::array<int,2> loc2){
+        int d;
+        d = std::min(abs(loc1[0] - loc2[0]),
+                     n_row - abs(loc1[0] - loc2[0])) +
+            std::min(abs(loc1[1] - loc2[1]),
+                     n_col - abs(loc1[1] - loc2[1]));
+        return d;
+    }
+    int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
         int d;
         d = std::min(abs(loc1[0] - loc2[0]),
                      n_row - abs(loc1[0] - loc2[0])) +
@@ -194,11 +206,14 @@ public:
 class Stabiliser: public Code{
 public:
     StabiliserType stabiliser_type;
-    std::vector<std::array<int,2>> error_locations;
-    
+    std::vector<std::array<int,3>> flip_locs;
+    std::vector< std::vector<int>> last_code;
+    int t = 0;
 public:
 //    Stabiliser(int n_row, int n_col): Code(n_row, n_col){}
-    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type): Code(n_row, n_col), stabiliser_type(stabiliser_type){}
+    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type): Code(n_row, n_col), stabiliser_type(stabiliser_type){
+        last_code = _code;
+    }
     void induceError(double error_prob){
         assert(error_prob <= 1);
         std::random_device rd;
@@ -214,18 +229,18 @@ public:
         }
     }
 
-    void getErrorLoc(){
+    void addFlipLoc(){
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
-                if (code(i, j) != 0) {
-                    error_locations.push_back({i,j});}
+                if (code(i, j) != last_code[i][j]) {
+                    flip_locs.push_back({i,j,t});}
             }
         }
     }
 
     PerfectMatching* getErrorMatching(){
-        getErrorLoc();
-        int n_error = error_locations.size();
+//        assert (flip_locs.size() != 0);
+        int n_error = flip_locs.size();
         std::vector <int> error_label(n_error);
         for (int k = 0; k < n_error; ++k) error_label[k] = k;
 
@@ -238,7 +253,7 @@ public:
 
         for (int i = 0; i < n_error; ++i) {
             for (int j = 0; j < i ; ++j) {
-                int d = distance(error_locations[i], error_locations[j]);
+                int d = spatialDistance(flip_locs[i], flip_locs[j]) + abs(flip_locs[i][2] - flip_locs[j][2]);
                 pm->AddEdge(error_label[i], error_label[j], d);
             }
         }
@@ -288,6 +303,29 @@ public:
         }
     }
 
+    void timeStep(double error_prob){
+        data.induceError(error_prob);
+        stabiliserUpdate();
+        stabiliserX.induceError(error_prob);
+        stabiliserX.t +=1;
+        stabiliserX.addFlipLoc();
+        stabiliserX.last_code = stabiliserX._code;
+        stabiliserZ.induceError(error_prob);
+        stabiliserZ.t +=1;
+        stabiliserZ.addFlipLoc();
+        stabiliserZ.last_code = stabiliserZ._code;
+    }
+    void lastStep(double error_prob){
+        data.induceError(error_prob);
+        stabiliserUpdate();
+        stabiliserX.t +=1;
+        stabiliserX.addFlipLoc();
+        stabiliserX.last_code = stabiliserX._code;
+        stabiliserZ.t +=1;
+        stabiliserZ.addFlipLoc();
+        stabiliserZ.last_code = stabiliserZ._code;
+    }
+
     //when annihilating errors, we aways go in row direction first, then in col direction.
     void fixError(StabiliserType stabiliser_type){
         Stabiliser* stabiliser;
@@ -305,7 +343,7 @@ public:
         }
 
         PerfectMatching* pm = stabiliser->getErrorMatching();
-        int n_error = stabiliser->error_locations.size();
+        int n_error = stabiliser->flip_locs.size();
         std::vector <int> error_label;
         std::array <int, 2> start, loc, min_path;
         std::random_device rd;
@@ -319,12 +357,12 @@ public:
         for (int error: error_label){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
                 int paired_error = pm->GetMatch(error);
-                min_path = stabiliser->minPath(stabiliser->error_locations[error],
-                                               stabiliser->error_locations[paired_error]);
+                min_path = stabiliser->minSpatialPath(stabiliser->flip_locs[error],
+                                               stabiliser->flip_locs[paired_error]);
                 ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
                 hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
-                start = {2* stabiliser->error_locations[error][0] + offset, 2* stabiliser->error_locations[error][1] + offset};
+                start = {2* stabiliser->flip_locs[error][0] + offset, 2* stabiliser->flip_locs[error][1] + offset};
                 loc = start; //implicit copy of start
 
                 //We might want to use step_sign *loc[0] < step_sign * end[0] condition to substitue ver_steps. But the
@@ -375,6 +413,10 @@ public:
  * for which Z_errors can run along the row going through X_stb.
  * Similarly for Z_stb
  * */
+
+
+
+
     bool hasLogicalError(StabiliserType stb){
         int n_v_error = 0;
         int n_h_error = 0;
@@ -427,8 +469,10 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
     int logical_errors_counter = 0;
     for (int i = 0; i < n_runs; ++i) {
         ToricCode c(L*2, L);
-        c.data.induceError(data_error_rate);
-        c.stabiliserUpdate();
+        for (int t = 0; t < L-1; ++t) {
+            c.timeStep(data_error_rate);
+        }
+        c.lastStep(data_error_rate);
         c.fixError();
         logical_errors_counter += c.hasLogicalError();
 //        printf("Run %d with error rate %.2f, error counter is at %d \n", i, data_error_rate, logical_errors_counter);
@@ -439,13 +483,13 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
 void errorDataOutput(int n_runs){
 //    std::vector<double> log_error_array;
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.09; data_error_rate <= 0.12; data_error_rate += 0.005) {
+    for (double data_error_rate = 0.028; data_error_rate <= 0.032; data_error_rate += 0.001) {
         data_error_rate_array.push_back(data_error_rate);
     }
     // we can add more entry to data error rate array
-    std::vector<int> code_size_array;
-    for (int code_size = 8; code_size <= 32; code_size *= 2) {
-        code_size_array.push_back(code_size);
+    std::vector<int> half_code_size_array;
+    for (int half_code_size = 6; half_code_size <= 12; half_code_size += 2) {
+        half_code_size_array.push_back(half_code_size);
     }
     // we can add more entry to data error rate array
     std::ofstream file;
@@ -453,22 +497,34 @@ void errorDataOutput(int n_runs){
 
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
-        for (int code_size: code_size_array){
-            printf("calculating avg log errors for code size %d with data error rate %.3f\n", code_size, data_error_rate);
-            fflush(stdout);
-            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
+        for (int half_code_size: half_code_size_array){
+//            printf("calculating avg log errors for code size %d with data error rate %.3f\n", 2*half_code_size, data_error_rate);
+//            fflush(stdout);
+            std::cout<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            avg_log_error = averageLogicalError(half_code_size, data_error_rate, n_runs);
             file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
-            file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            file<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            // code_size is the size of stabiliser grid, the size of the
             file.close();
         }
     }
 }
 
 int main() {
-//    SurfaceCode c(8, 4);
-//    c.data.printCode();
-//    c.stabiliserX.printCode();
-//    c.stabiliserZ.printCode();
+//    ToricCode c(8, 4);
+//    c.printCode();
+//    c.timeStep(0.1);
+//    c.timeStep(0.1);
+//    c.lastStep(0.1);
+//    c.printCode();
+//    c.fixError();
+//    c.stabiliserUpdate();
+//    c.printCode();
+//    int X_log_error = c.hasLogicalError(X_STB);
+//    printf("there are %d X logical errors\n", X_log_error);
+//    printf("\n");
+//    int Z_log_error = c.hasLogicalError(Z_STB);
+//    printf("there are %d Z logical errors\n", Z_log_error);
 //    c.data.induceError(0.1);
 //    c.data.printCode();
 //    c.stabiliserUpdateSlow();
@@ -485,7 +541,7 @@ int main() {
 
 //    double avg_errors = averageLogicalError(8, 0.1, 10000);
 //    std::cout<< avg_errors;
-    errorDataOutput(10);
+    errorDataOutput(1);
 //    c.printSurfaceCode();
 //    int Z_log_error = c.hasLogicalError(Z_STB);
 //    printf("there are %d Z logical errors\n", Z_log_error);
