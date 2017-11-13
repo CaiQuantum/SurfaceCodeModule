@@ -1,15 +1,19 @@
 #include <iostream>
 #include <vector>
 #include <random>
-#include <cmath>
-#include <cassert>
 #include <array>
 #include <set>
 #include "PerfectMatching.h"
 #include <fstream>
-//To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
-//triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
-//the unwanted files.
+
+/*To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
+ * triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
+ * the unwanted files.
+ *
+ * There are two parameters you can tweak in the final version of this program. The first one is the time-spatial relative
+ * weight in perfectmatching. i.e. how important is time distance relative to spatial distance when we are calculating
+ * the perfect matching distance.
+ * */
 
 template <class InputType> // printMatrix can be printed without specifying InputType, this is done using implicit instantiation
 void printMatrix(InputType M){
