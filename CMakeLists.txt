@@ -20,7 +20,7 @@ set(SOURCE_FILES
     blossom5-v2.05/PMshrink.cpp
     blossom5-v2.05/PQ.h
     blossom5-v2.05/timer.h
-    main.cpp)
+    main.cpp ErrorFunc.h HelperFunc.h)
 include_directories(blossom5-v2.05)
 
 add_executable(ToricCode ${SOURCE_FILES})

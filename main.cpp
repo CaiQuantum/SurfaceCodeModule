@@ -5,6 +5,8 @@
 #include <set>
 #include "PerfectMatching.h"
 #include <fstream>
+#include "ErrorFunc.h"
+#include "HelperFunc.h"
 
 /*To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
  * triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
@@ -14,22 +16,6 @@
  * weight in perfectmatching. i.e. how important is time distance relative to spatial distance when we are calculating
  * the perfect matching distance.
  * */
-
-template <class InputType> // printMatrix can be printed without specifying InputType, this is done using implicit instantiation
-void printMatrix(InputType M){
-    for (auto array: M){
-        for (auto element: array){
-            printf("%2d ", element);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-int getSign(int a){
-return (a>0) - (a<0);
-}
-
 
 class Code{
 public:
@@ -42,7 +28,7 @@ public:
         for(int i = 0; i < n_row; i++){
             _code[i].resize(n_col);
             for(int j = 0; j < n_col; j++){
-                _code[i][j] = (int)0;
+                _code[i][j] = NO_ERROR;
             }
         }
     }
@@ -71,7 +57,7 @@ public:
     void resetCode(){
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
-                _code[i][j] = (int)0;
+                _code[i][j] = NO_ERROR;
             }
         }
     }
@@ -111,40 +97,9 @@ public:
 
 };
 
-enum DataError{
-    NO_ERROR = 0,
-    X_ERROR = 1,
-    Z_ERROR = -1,
-    Y_ERROR = 2
-};
-
-bool isError(int code_value, int error){
-    return code_value == error or code_value == 2;
-}
-
-int errorComposite(int error0, int error1){
-    DataError error_f;
-    if (error0 == NO_ERROR) error_f = (DataError)error1;
-    else if (error0 == error1) error_f = NO_ERROR;
-    else if (error1 == X_ERROR){
-        if (error0 == Y_ERROR) error_f = Z_ERROR;
-        else error_f = Y_ERROR;
-    }
-    else if (error1 == Z_ERROR){
-        if (error0 == Y_ERROR) error_f = X_ERROR;
-        else error_f = Y_ERROR;
-    }
-    else if (error1 == Y_ERROR){
-        if (error0 == X_ERROR) error_f = Z_ERROR;
-        else error_f = X_ERROR;
-    }
-    else error_f = (DataError)error0;
-    return (int)error_f;
-}
-
 enum StabiliserType{
-    X_STB = 1,
-    Z_STB= -1
+    X_STB,
+    Z_STB
 };
 
 class Data: public Code{
@@ -158,7 +113,7 @@ public:
 
     void induceError(double error_prob, int ERROR){
         assert(error_prob <= 1);
-        auto OTHER_ERROR = (int) -ERROR;
+//        auto OTHER_ERROR = (int) -ERROR;
 
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -180,10 +135,10 @@ public:
     void getErrorLoc(){
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
-                if (code(i, j) == -1 or code(i, j) == 2) {
+                if (isError(code(i,j), Z_ERROR)) {
                     error_locations[0].push_back({i,j});
                 }
-                else if (code(i, j) == 1 or code(i, j) == 2){
+                else if (isError(code(i,j), X_ERROR)){
                     error_locations[1].push_back({i,j});
                 }
             }
@@ -203,7 +158,6 @@ public:
     };
 
 };
-
 
 
 //boolean 0 denote no error, 1 denotes error.
@@ -287,6 +241,23 @@ public:
         else if (row%2 == 0) return data.code(row,(col-1)/2);
         else return data.code(row, col/2); //equivalent to else if (row%2 == 1)
     }
+    //red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
+    void printCode(){
+        for (int i = 0; i < data.n_row; i++) {
+            for (int j = 0; j < data.n_col; j++) {
+                if (i%2 == 0) {
+                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX(i/2, j));
+                    printf("%2d ", data(i, j));
+                }
+                else {
+                    printf("%2d ", data(i, j));
+                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ((i-1)/2, j));
+                }
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
 
     void stabiliserUpdate(){
         std::vector<std::array<int, 2>> pos_array= {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
@@ -296,31 +267,96 @@ public:
                 nX = 0;
                 nZ = 0;
                 for (std::array<int,2> pos: pos_array){
-                    if (code(2*i+pos[0],2*j+pos[1]) == Z_ERROR or code(2*i+pos[0],2*j+pos[1]) == Y_ERROR) nX++;
-                    if (code(2*i+1+pos[0],2*j+1+pos[1]) == X_ERROR or code(2*i+1+pos[0],2*j+1+pos[1]) == Y_ERROR) nZ++;
+                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
+                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
                 }
-                if (nX%2 == 1) stabiliserX(i,j) = 1;
-                else stabiliserX(i,j) = 0;
-                if (nZ%2 == 1) stabiliserZ(i,j) = 1;
-                else stabiliserZ(i,j) = 0;
+                stabiliserX(i,j) = nX%2;
+                stabiliserZ(i,j) = nZ%2;
             }
         }
     }
+    void stabiliserUpdate(double error_prob){
 
-    void timeStep(double error_prob){
-        data.induceError(error_prob);
-        stabiliserUpdate();
-        stabiliserX.induceError(error_prob);
+        std::array<double,512> prob_array;
+        std::array<std::array<int, 5>,512> error_table;
+
+        std::ifstream inFile;
+        char filename [50];
+        sprintf (filename, "../ParityCheckErrorTable/Data/error_table%.4f.txt", error_prob);
+        inFile.open(filename);
+        if (! inFile) {
+            std::cerr << "unable to open file for reading" << std::endl;
+        }
+        for (int i = 0; i < 512; i++) {
+            inFile >> prob_array[i];
+            for (int j = 0; j < 5; j++) {
+                inFile >> error_table[i][j];
+            }
+        }
+        inFile.close();
+
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
+        std::vector<std::array<int, 2>> pos_array = {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+        std::array<int, 5> X_stb_err;
+        int nX, nZ;
+        for (int i = 0; i < stabiliserX.n_row; ++i) {
+            for (int j = 0; j < stabiliserX.n_col; ++j) {
+                nX = 0;
+                X_stb_err = error_table[error_distr(gen)];
+                int k = 1;
+                for (std::array<int,2> pos: pos_array){
+                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
+                    code(2*i+pos[0],2*j+pos[1]) = errorComposite(code(2*i+pos[0],2*j+pos[1]), X_stb_err[k]);
+                    k++;
+                }
+                stabiliserX(i,j) = (nX+X_stb_err[0])%2;
+            }
+        }
+        std::array<int, 5> Z_stb_err;
+        for (int i = 0; i < stabiliserZ.n_row; ++i) {
+            for (int j = 0; j < stabiliserZ.n_col; ++j) {
+                nZ = 0;
+                Z_stb_err = error_table[error_distr(gen)];
+                int k = 1;
+                for (std::array<int,2> pos: pos_array){
+                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
+                    code(2*i+1+pos[0],2*j+1+pos[1]) = errorComposite(code(2*i+1+pos[0],2*j+1+pos[1]), Z_stb_err[k]);
+                    k++;
+                }
+                stabiliserZ(i,j) = (nZ+Z_stb_err[0])%2;
+            }
+        }
+
+    }
+
+    //when mode = 1, we use the full error model for the parity check circuit.
+    void timeStep(double error_prob, int mode = 1){
+        if (mode == 1){
+            stabiliserUpdate(error_prob);
+        }
+        else{
+            data.induceError(error_prob);
+            stabiliserUpdate();
+            stabiliserX.induceError(error_prob);
+            stabiliserZ.induceError(error_prob);
+        }
         stabiliserX.t +=1;
         stabiliserX.addFlipLoc();
         stabiliserX.last_code = stabiliserX._code;
-        stabiliserZ.induceError(error_prob);
         stabiliserZ.t +=1;
         stabiliserZ.addFlipLoc();
         stabiliserZ.last_code = stabiliserZ._code;
     }
-    void lastStep(double error_prob){
-        data.induceError(error_prob);
+
+    void lastStep(double error_prob, int mode = 1){
+        if (mode ==1){
+            stabiliserUpdate(error_prob);
+        }
+        else{
+            data.induceError(error_prob);
+        }
         stabiliserUpdate();
         stabiliserX.t +=1;
         stabiliserX.addFlipLoc();
@@ -373,7 +409,7 @@ public:
                 //situation is much more complicated when we need to cross the boundary.
                 ver_steps = 0;
                 hor_steps = 0;
-// ///////////////////// Comment out this section if we don't want error correction along random min path.
+                // ////Comment out this section if we don't want error correction along random min path.
                 while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
                     if (direction(gen)){
                         code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
@@ -386,7 +422,7 @@ public:
                         hor_steps +=1;
                     }
                 }
-// ///////////////////////////////
+                // ///////////////////////////////
                 while (ver_steps < abs(min_path[0])){
                     code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
                     loc[0] += 2*ver_sign;
@@ -407,97 +443,72 @@ public:
         fixError(X_STB);
         fixError(Z_STB);
     }
-// Simply counting the number of error in each row or col is not a good way because this fail when there is a portion of
-// path running along the line that we are testing.
-// way to counter this: testing along more rows? (NOT conclusive)
-// A better way is to track along the path that run along the row?
-// The portion of path can be identified by looking at consecutive error along one row.
 
 /* For X_stb, we count along the row 1, for which Z_errors cannot run along the row (unlike row 0
  * for which Z_errors can run along the row going through X_stb.
  * Similarly for Z_stb
  * */
 
-
-
-
     bool hasLogicalError(StabiliserType stb){
         int n_v_error = 0;
         int n_h_error = 0;
         if (stb == X_STB){
             for (int j = 0; j < n_col; j +=2) {
-                if (isError(code(1,j), -1)) n_v_error++; // check horizontally if any vertical error cuts through
+                if (isError(code(1,j), Z_ERROR)) n_v_error++; // check horizontally if any vertical error cuts through
             }
             for (int i = 0; i < n_row; i += 2) {
-                if (isError(code(i,1), -1)) n_h_error++;
+                if (isError(code(i,1), Z_ERROR)) n_h_error++;
             }
         }
         else if (stb == Z_STB){
             for (int j = 1; j < n_col; j +=2) {
-                if (isError(code(0,j), 1)) n_v_error++;
+                if (isError(code(0,j), X_ERROR)) n_v_error++;
             }
             for (int i = 1; i < n_row; i += 2) {
-                if (isError(code(i,0), 1)) n_h_error++;
+                if (isError(code(i,0), X_ERROR)) n_h_error++;
             }
         }
-//        printf("there are %d horizontal logical errors\n", n_h_error%2);
-//        printf("there are %d vertical logical errors\n", n_v_error%2);
         return ((n_h_error%2) or (n_v_error%2));
     }
 
     bool hasLogicalError(){
         return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
     }
-
-//red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
-    void printCode(){
-        for (int i = 0; i < data.n_row; i++) {
-            for (int j = 0; j < data.n_col; j++) {
-                if (i%2 == 0) {
-                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX(i/2, j));
-                    printf("%2d ", data(i, j));
-                }
-                else {
-                    printf("%2d ", data(i, j));
-                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ((i-1)/2, j));
-                }
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
 };
 
-double averageLogicalError(int L, double data_error_rate, int n_runs){
+//In this function we assume the number of time steps is the same as length L.
+double averageLogicalError(int L, double data_error_rate, int n_runs, int error_mode){
 
     int logical_errors_counter = 0;
     for (int i = 0; i < n_runs; ++i) {
         ToricCode c(L*2, L);
         for (int t = 0; t < L-1; ++t) {
-            c.timeStep(data_error_rate);
+            c.timeStep(data_error_rate, error_mode);
         }
-        c.lastStep(data_error_rate);
+        c.lastStep(data_error_rate, error_mode);
         c.fixError();
         logical_errors_counter += c.hasLogicalError();
-//        printf("Run %d with error rate %.2f, error counter is at %d \n", i, data_error_rate, logical_errors_counter);
     }
     return (double)logical_errors_counter/(double)n_runs;
 }
 
-void errorDataOutput(int n_runs){
-//    std::vector<double> log_error_array;
+void errorDataOutput(int n_runs, int error_mode){
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.028; data_error_rate <= 0.032; data_error_rate += 0.001) {
+    for (double data_error_rate = 0.003; data_error_rate <0.0136; data_error_rate += 0.0005) {
         data_error_rate_array.push_back(data_error_rate);
     }
-    // we can add more entry to data error rate array
     std::vector<int> half_code_size_array;
     for (int half_code_size = 6; half_code_size <= 12; half_code_size += 2) {
         half_code_size_array.push_back(half_code_size);
     }
-    // we can add more entry to data error rate array
     std::ofstream file;
-    char filename[] = "../data_files/CumulativeErrorData.txt";// this is called buffer, it must be large enough to hold the string.
+    char filename [50];
+    if(error_mode == 1){
+        sprintf (filename, "../data_files/FullCircuitErrorCumulativeErrorData.txt");
+    }
+    else{
+        sprintf (filename, "../data_files/ErrorCumulativeErrorData.txt");
+    }
 
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
@@ -505,7 +516,7 @@ void errorDataOutput(int n_runs){
 //            printf("calculating avg log errors for code size %d with data error rate %.3f\n", 2*half_code_size, data_error_rate);
 //            fflush(stdout);
             std::cout<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
-            avg_log_error = averageLogicalError(half_code_size, data_error_rate, n_runs);
+            avg_log_error = averageLogicalError(half_code_size, data_error_rate, n_runs, error_mode);
             file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
             file<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
             // code_size is the size of stabiliser grid, the size of the
@@ -514,69 +525,24 @@ void errorDataOutput(int n_runs){
     }
 }
 
+
+
+
+
+
 int main() {
-//    ToricCode c(8, 4);
-//    c.printCode();
-//    c.timeStep(0.1);
-//    c.timeStep(0.1);
-//    c.lastStep(0.1);
-//    c.printCode();
-//    c.fixError();
-//    c.stabiliserUpdate();
-//    c.printCode();
-//    int X_log_error = c.hasLogicalError(X_STB);
-//    printf("there are %d X logical errors\n", X_log_error);
-//    printf("\n");
-//    int Z_log_error = c.hasLogicalError(Z_STB);
-//    printf("there are %d Z logical errors\n", Z_log_error);
-//    c.data.induceError(0.1);
-//    c.data.printCode();
-//    c.stabiliserUpdateSlow();
-//    c.printSurfaceCode();
-//    c.fixError();
-//    c.stabiliserUpdateSlow();
-//    c.printSurfaceCode();
-//    c.data.printCode();
-//    int X_log_error = c.hasLogicalError(X_STB);
-//    printf("there are %d X logical errors\n", X_log_error);
-//    printf("\n");
-//    int Z_log_error = c.hasLogicalError(Z_STB);
-//    printf("there are %d Z logical errors\n", Z_log_error);
-
-//    double avg_errors = averageLogicalError(8, 0.1, 10000);
-//    std::cout<< avg_errors;
-    errorDataOutput(1);
-//    c.printSurfaceCode();
-//    int Z_log_error = c.hasLogicalError(Z_STB);
-//    printf("there are %d Z logical errors\n", Z_log_error);
-
-//    c.data.printErrorLoc();
-    return 0;
+    errorDataOutput(10000,1);
+//    std::ifstream inFile;
+//    inFile.open("../ParityCheckErrorTable/Data/error_table0.0040.txt");
+//    if (! inFile) {
+//        std::cerr << "unable to open file for reading" << std::endl;
+//    }
+//    double a;
+//    inFile >> a;
+//    inFile.close();
+//
+////    int a = averageLogicalError(8, 0.3, 1);
+//    std::cout<< a;
+//
+//    return 0;
 }
-
-/*
- * What we want:
- *
- * A CodeArray object:
- * CodeArray.init(height, width)
- * CodeArray.induceErrors(error_percentage, error_type)
- * CodeArray.error_location: an array recording the location of errors
- *
- * A DataArray object: inherent from code array
- *
- * A StabiliserArray object:
- * inherent form code array, with members like StabiliserArray.stabiliser_type, StabiliserArray.relative_location
- * stabiliser.error_location
- * stabiliser.getErrorLocation(): return the location of stabiliser errors.
- * stabiliser.errorPairing(): using min-weight to pair up errors.
- *
- * A SurfaceCode object:
- *
- * SurfaceCode.data: an DataArray object of data qubits
- * SurfaceCode.stabiliser(n): an StabiliserArray object of stabiliser qubits, n is 0 or 1.
- * SurfaceCode.stabiliserUpdate(): which is just stabiliser measurement
- * SurfaceCode.errorFix(): Fix error in SurfaceCode.data using stabiliser.errorPairing()
- * SurfaceCode.
- *
- *
- */

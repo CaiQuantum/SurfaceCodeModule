@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-filename = '../CumulativeErrorData.txt'
+# filename = '../CumulativeErrorData.txt'
+filename = '../FullCircuitErrorCumulativeErrorData.txt'
 data_array = np.genfromtxt(filename, delimiter=',')
 df = pd.DataFrame(data_array, columns = ['data error rate', 'code size', 'logical error rate', 'n_runs'])
 print(df)
