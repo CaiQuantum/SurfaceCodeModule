@@ -123,7 +123,7 @@ public:
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
                 if (error_occur(gen)){
-                    code(i, j) = errorComposite(code(i, j), ERROR);
+                    _code[i][j] = errorComposite(_code[i][j], ERROR);
                 }
             }
         }
@@ -135,10 +135,10 @@ public:
     void getErrorLoc(){
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
-                if (isError(code(i,j), Z_ERROR)) {
+                if (isError(_code[i][j], Z_ERROR)) {
                     error_locations[0].push_back({i,j});
                 }
-                else if (isError(code(i,j), X_ERROR)){
+                else if (isError(_code[i][j], X_ERROR)){
                     error_locations[1].push_back({i,j});
                 }
             }
@@ -181,7 +181,7 @@ public:
         for(int i = 0; i < n_row; i++){
             for(int j = 0; j < n_col; j++){
                 if (error_occur(gen)){
-                    code(i, j) = not code(i, j);
+                    _code[i][j] = not _code[i][j];
                 }
             }
         }
@@ -190,7 +190,7 @@ public:
     void addFlipLoc(){
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
-                if (code(i, j) != last_code[i][j]) {
+                if (_code[i][j] != last_code[i][j]) {
                     flip_locs.push_back({i,j,t});}
             }
         }
@@ -236,10 +236,10 @@ public:
     int& code(int row, int col){
         row = (row% n_row + n_row)%n_row;
         col = (col% n_col + n_col)%n_col;
-        if (row%2 == 0 and col%2 == 0) return stabiliserX.code(row/2,col/2);
-        else if (row%2 == 1 and col%2 == 1) return stabiliserZ.code((row-1)/2, (col-1)/2);
-        else if (row%2 == 0) return data.code(row,(col-1)/2);
-        else return data.code(row, col/2); //equivalent to else if (row%2 == 1)
+        if (row%2 == 0 and col%2 == 0) return stabiliserX._code[row/2][col/2];
+        else if (row%2 == 1 and col%2 == 1) return stabiliserZ._code[(row-1)/2][(col-1)/2];
+        else if (row%2 == 0) return data._code[row][(col-1)/2];
+        else return data._code[row][col/2]; //equivalent to else if (row%2 == 1)
     }
     //red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
     void printCode(){
@@ -265,12 +265,18 @@ public:
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
                 nX = 0;
-                nZ = 0;
                 for (std::array<int,2> pos: pos_array){
                     if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
-                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
                 }
                 stabiliserX(i,j) = nX%2;
+            }
+        }
+        for (int i = 0; i < stabiliserZ.n_row; ++i) {
+            for (int j = 0; j < stabiliserZ.n_col; ++j) {
+                nZ = 0;
+                for (std::array<int,2> pos: pos_array){
+                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
+                }
                 stabiliserZ(i,j) = nZ%2;
             }
         }
@@ -281,8 +287,10 @@ public:
         std::array<std::array<int, 5>,512> error_table;
 
         std::ifstream inFile;
-        char filename [50];
-        sprintf (filename, "../ParityCheckErrorTable/Data/error_table%.4f.txt", error_prob);
+
+        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+        char filename [100];
+        sprintf (filename, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
         inFile.open(filename);
         if (! inFile) {
             std::cerr << "unable to open file for reading" << std::endl;
@@ -444,10 +452,10 @@ public:
         fixError(Z_STB);
     }
 
-/* For X_stb, we count along the row 1, for which Z_errors cannot run along the row (unlike row 0
- * for which Z_errors can run along the row going through X_stb.
- * Similarly for Z_stb
- * */
+    /* For X_stb, we count along the row 1, for which Z_errors cannot run along the row (unlike row 0
+     * for which Z_errors can run along the row going through X_stb.
+     * Similarly for Z_stb
+     * */
 
     bool hasLogicalError(StabiliserType stb){
         int n_v_error = 0;
@@ -492,9 +500,9 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
     return (double)logical_errors_counter/(double)n_runs;
 }
 
-void errorDataOutput(int n_runs, int error_mode){
+void errorDataOutput(int n_runs, int error_mode, int job_array_id){
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.003; data_error_rate <0.0136; data_error_rate += 0.0005) {
+    for (double data_error_rate = 0.003; data_error_rate <0.005; data_error_rate += 0.0005) {
         data_error_rate_array.push_back(data_error_rate);
     }
     std::vector<int> half_code_size_array;
@@ -504,10 +512,10 @@ void errorDataOutput(int n_runs, int error_mode){
     std::ofstream file;
     char filename [50];
     if(error_mode == 1){
-        sprintf (filename, "../data_files/FullCircuitErrorCumulativeErrorData.txt");
+        sprintf (filename, "../data_files/FullCircuitErrorCumulativeErrorData%d.txt", job_array_id);
     }
     else{
-        sprintf (filename, "../data_files/ErrorCumulativeErrorData.txt");
+        sprintf (filename, "../data_files/ErrorCumulativeErrorData%d.txt", job_array_id);
     }
 
     double avg_log_error;
@@ -515,8 +523,8 @@ void errorDataOutput(int n_runs, int error_mode){
         for (int half_code_size: half_code_size_array){
 //            printf("calculating avg log errors for code size %d with data error rate %.3f\n", 2*half_code_size, data_error_rate);
 //            fflush(stdout);
-            std::cout<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
             avg_log_error = averageLogicalError(half_code_size, data_error_rate, n_runs, error_mode);
+            std::cout<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
             file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
             file<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
             // code_size is the size of stabiliser grid, the size of the
@@ -528,10 +536,10 @@ void errorDataOutput(int n_runs, int error_mode){
 
 
 
-
-
 int main() {
-    errorDataOutput(10000,1);
+
+//    averageLogicalError(8, 0.003, 10, 1);
+    errorDataOutput(10, 1, 1);
 //    std::ifstream inFile;
 //    inFile.open("../ParityCheckErrorTable/Data/error_table0.0040.txt");
 //    if (! inFile) {
@@ -541,8 +549,32 @@ int main() {
 //    inFile >> a;
 //    inFile.close();
 //
-////    int a = averageLogicalError(8, 0.3, 1);
+//    int a = averageLogicalError(8, 0.3, 1);
 //    std::cout<< a;
 //
 //    return 0;
 }
+
+
+
+
+
+//int main(int argc, char *argv[]) {
+//
+//    int job_array_id = std::atoi(argv[1]);
+// //    averageLogicalError(8, 0.003, 10, 1);
+//    errorDataOutput(10, 1, job_array_id);
+// //    std::ifstream inFile;
+// //    inFile.open("../ParityCheckErrorTable/Data/error_table0.0040.txt");
+// //    if (! inFile) {
+// //        std::cerr << "unable to open file for reading" << std::endl;
+// //    }
+// //    double a;
+// //    inFile >> a;
+// //    inFile.close();
+// //
+// //    int a = averageLogicalError(8, 0.3, 1);
+// //    std::cout<< a;
+// //
+// //    return 0;
+//}

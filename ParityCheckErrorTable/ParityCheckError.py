@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 import os
+import sys
 
 from ProdCnotTableGenrators import cnot_err_table, product_table
 
@@ -12,6 +13,8 @@ Here we introduce:
 1 readout error
 A total of 2*4^(8+4+1) = 2^(27) possibilities. (Actually possible to enumerate over all possibilities if wanted)
 '''
+
+
 def get_error_table(n_trials, error_prob):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
@@ -81,7 +84,7 @@ def get_error_table_exact(error_prob):
     c means cnot error, 
     r means readout error
     '''
-    for h in itertools.product(range(4), repeat = 5):
+    for h in itertools.product(range(4), repeat=5):
         for c in itertools.product(range(16), repeat=4):
             for r in range(2):
                 # prep error on ancilla and hadamard error on data qubit
@@ -125,24 +128,18 @@ def get_error_table_exact(error_prob):
     filename = "./Data/exact_error_table%.4f.txt"%error_prob
     file = open(filename, 'w')
     for result in range(2):
-        for q1 in range(4):
-            for q2 in range(4):
-                for q3 in range(4):
-                    for q4 in range(4):
-                        file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
+        for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
+            file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
     file.close()
-
-
-
 
 
 if __name__ == "__main__":
     # error_prob = np.arange(0.005,0.015,0.001)
     # np.random.seed(random.SystemRandom().randint(0,2**32-1))
     # n_trials = 10000000
-    # arrayID = float(sys.argv[1])
-    # error_prob = (0.0005*arrayID)+0.003
-    get_error_table_exact(0.003)
+    arrayID = float(sys.argv[1])
+    error_prob = (0.0005*arrayID)+0.001
+    get_error_table_exact(error_prob)
 
 
 

@@ -1,10 +1,26 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
+from re import match
 
+os.chdir('..')
 # filename = '../CumulativeErrorData.txt'
-filename = '../FullCircuitErrorCumulativeErrorData.txt'
-data_array = np.genfromtxt(filename, delimiter=',')
+output_file = 'FullCircuitErrorCumulativeErrorData.txt'
+if os.path.exists(output_file):
+    file_mode = 'a' # append if already exists
+else:
+    file_mode = 'w' # make a new file if not
+
+file_list = [f for f in os.listdir('.') if match('FullCircuitErrorCumulativeErrorData[0-9]+\.txt', f)]
+with open(output_file, file_mode) as outfile:
+    for fname in file_list:
+        with open(fname) as infile:
+            for line in infile:
+                outfile.write(line)
+        os.remove(fname)
+data_array = np.genfromtxt(output_file, delimiter=',')
+
 df = pd.DataFrame(data_array, columns = ['data error rate', 'code size', 'logical error rate', 'n_runs'])
 print(df)
 redundant_row = []
@@ -23,7 +39,7 @@ df.drop(df.index[redundant_row], inplace=True)
 df.sort_values(['data error rate', 'code size'], inplace = True)
 df.reset_index()
 print(df)
-with open(filename, 'w+') as file:
+with open(output_file, 'w+') as file:
     for index, row in df.iterrows():
         for i in range(4):
             file.write(str(row[i]))
@@ -45,7 +61,8 @@ for size in size_list:
     ax.plot(error_list, df[size], label=size)
 ax.set_xlabel('data error rate')
 ax.set_ylabel('logical error rate')
-# ax.set_xlim([0.09,0.12])
+ax.set_xlim([0.0010,0.005])
 ax.legend()
 fig.tight_layout()
 plt.show(block = False)
+os.chdir('./plotting')
