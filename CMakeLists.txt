@@ -3,7 +3,7 @@ project(ToricCode)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SOURCE_FILES main.cpp ErrorFunc.h HelperFunc.h)
+set(SOURCE_FILES main.cpp ErrorFunc.h HelperFunc.h ErrorFunc.cpp)
 
 #find_package(blossom5-v2.05 REQUIRED)
 add_library(blossom5-v2.05

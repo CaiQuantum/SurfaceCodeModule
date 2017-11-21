@@ -26,9 +26,18 @@ def get_cnot_err_table():
                 # print(np.sum(np.absolute(Ef -E)))
                 cerr_table[i1][j1][0] = i2
                 cerr_table[i1][j1][1] = j2
-                # print(i1, j1, ' -> ', i2, j2, '\n')
+                print(i1, j1, ' -> ', i2, j2, '\n')
     # print(cerr_table)
-    return cerr_table.astype(int)
+    cerr_table = cerr_table.astype(int)
+    filename = "./cnot_err_table.txt"
+    file = open(filename, 'w')
+    for row in cerr_table:
+        for entry in row:
+            print(entry)
+            file.write("%d %d " % (entry[0], entry[1]))
+        file.write("\n")
+    file.close()
+    return cerr_table
 
 
 

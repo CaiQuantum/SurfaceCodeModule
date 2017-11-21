@@ -19,7 +19,7 @@
 
 class Code{
 public:
-    std::vector< std::vector<int>> _code;
+    std::vector<std::vector<int>> _code;
     int n_row;
     int n_col;
 public:
@@ -211,6 +211,7 @@ public:
 
         for (int i = 0; i < n_error; ++i) {
             for (int j = 0; j < i ; ++j) {
+                //add spatial distance and time distance together as cost.
                 int d = spatialDistance(flip_locs[i], flip_locs[j]) + abs(flip_locs[i][2] - flip_locs[j][2]);
                 pm->AddEdge(error_label[i], error_label[j], d);
             }
@@ -230,8 +231,11 @@ public:
     int n_col;
 
 public:
-    ToricCode(int n_row, int n_col): n_row(n_row), n_col(2*n_col), data(n_row, n_col),
-                                       stabiliserX(n_row/2, n_col, X_STB), stabiliserZ(n_row/2, n_col, Z_STB){}
+    ToricCode(int n_row, int n_col): n_row(n_row), n_col(n_col), data(n_row, n_col/2),
+                                       stabiliserX(n_row/2, n_col/2, X_STB), stabiliserZ(n_row/2, n_col/2, Z_STB){
+        assert(n_row%2==0);
+        assert(n_col%2==0);
+    }
 
     int& code(int row, int col){
         row = (row% n_row + n_row)%n_row;
@@ -260,7 +264,7 @@ public:
     }
 
     void stabiliserUpdate(){
-        std::vector<std::array<int, 2>> pos_array= {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+        std::vector<std::array<int, 2>> pos_array= {{0,1}, {-1,0}, {1,0}, {0,(-1)}};
         int nX, nZ;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
@@ -290,7 +294,8 @@ public:
 
         //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
         char filename [100];
-        sprintf (filename, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
+//        sprintf (filename, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
+        sprintf (filename, "../ParityCheckErrorTable/Data/new_exact_error_table%.4f.txt", error_prob);
         inFile.open(filename);
         if (! inFile) {
             std::cerr << "unable to open file for reading" << std::endl;
@@ -309,16 +314,28 @@ public:
         std::vector<std::array<int, 2>> pos_array = {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
         std::array<int, 5> X_stb_err;
         int nX, nZ;
+        int ancilla;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
-                nX = 0;
+                ancilla= 0;
+//                nX=0;
+                //randomly select one row in the error_table
                 X_stb_err = error_table[error_distr(gen)];
                 int k = 1;
                 for (std::array<int,2> pos: pos_array){
-                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
+//                    //calculate real parity
+//                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
+
+                    '''add in hadamard!!!!!'''
+
+                    std::tie(code(2*i+pos[0],2*j+pos[1]), ancilla) = pass_through_cnot(code(2*i+pos[0],2*j+pos[1]),ancilla);
+
+                    //add errors to data qubit
                     code(2*i+pos[0],2*j+pos[1]) = errorComposite(code(2*i+pos[0],2*j+pos[1]), X_stb_err[k]);
                     k++;
                 }
+                //add readout errors
+                if (ancilla == )
                 stabiliserX(i,j) = (nX+X_stb_err[0])%2;
             }
         }
@@ -338,6 +355,88 @@ public:
         }
 
     }
+
+//    void stabiliserUpdate(double error_prob){
+//
+//        std::array<double,512> prob_array;
+//        std::array<std::array<int, 5>,512> error_table;
+//        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+//
+//        std::ifstream inFile;
+//
+//        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+//        char filename [100];
+////        sprintf (filename, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
+//        sprintf (filename, "../ParityCheckErrorTable/Data/fowler_error_table_X%.4f.txt", error_prob);
+//        inFile.open(filename);
+//        if (! inFile) {
+//            std::cerr << "unable to open file for reading" << std::endl;
+//        }
+//        for (int i = 0; i < 512; i++) {
+//            inFile >> prob_array[i];
+//            for (int j = 0; j < 5; j++) {
+//                inFile >> error_table[i][j];
+//            }
+//        }
+//        inFile.close();
+//
+//        std::random_device rd;
+//        std::mt19937 gen(rd());
+//        std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
+//        std::array<int, 5> X_stb_err;
+//        int nX, nZ;
+//        for (int i = 0; i < stabiliserX.n_row; ++i) {
+//            for (int j = 0; j < stabiliserX.n_col; ++j) {
+//                nX = 0;
+//                //randomly select one row in the error_table
+//                X_stb_err = error_table[error_distr(gen)];
+//                int k = 1;
+//                for (std::array<int,2> pos: pos_array){
+//                    //calculate real parity
+//                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
+//                    //add errors to data qubit
+//                    code(2*i+pos[0],2*j+pos[1]) = errorComposite(code(2*i+pos[0],2*j+pos[1]), X_stb_err[k]);
+//                    k++;
+//                }
+//                //add readout errors
+//                stabiliserX(i,j) = (nX+X_stb_err[0])%2;
+//            }
+//        }
+//
+//        std::ifstream inFile2;
+//        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+//        char filename2 [100];
+////        sprintf (filename2, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
+//        sprintf (filename2, "../ParityCheckErrorTable/Data/fowler_error_table_Z%.4f.txt", error_prob);
+//        inFile2.open(filename2);
+//        if (! inFile2) {
+//            std::cerr << "unable to open file for reading" << std::endl;
+//        }
+//        for (int i = 0; i < 512; i++) {
+//            inFile2 >> prob_array[i];
+//            for (int j = 0; j < 5; j++) {
+//                inFile2 >> error_table[i][j];
+//            }
+//        }
+//        inFile2.close();
+//        std::discrete_distribution<> error_distr2(prob_array.begin(), prob_array.end());
+//        std::array<int, 5> Z_stb_err;
+//        for (int i = 0; i < stabiliserZ.n_row; ++i) {
+//            for (int j = 0; j < stabiliserZ.n_col; ++j) {
+//                nZ = 0;
+//                Z_stb_err = error_table[error_distr2(gen)];
+//                int k = 1;
+//                for (std::array<int,2> pos: pos_array){
+//                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
+//                    code(2*i+1+pos[0],2*j+1+pos[1]) = errorComposite(code(2*i+1+pos[0],2*j+1+pos[1]), Z_stb_err[k]);
+//                    k++;
+//                }
+//                stabiliserZ(i,j) = (nZ+Z_stb_err[0])%2;
+//            }
+//        }
+//    }
+
+
 
     //when mode = 1, we use the full error model for the parity check circuit.
     void timeStep(double error_prob, int mode = 1){
@@ -461,7 +560,7 @@ public:
         int n_v_error = 0;
         int n_h_error = 0;
         if (stb == X_STB){
-            for (int j = 0; j < n_col; j +=2) {
+            for (int j = 0; j < n_col; j += 2) {
                 if (isError(code(1,j), Z_ERROR)) n_v_error++; // check horizontally if any vertical error cuts through
             }
             for (int i = 0; i < n_row; i += 2) {
@@ -469,7 +568,7 @@ public:
             }
         }
         else if (stb == Z_STB){
-            for (int j = 1; j < n_col; j +=2) {
+            for (int j = 1; j < n_col; j += 2) {
                 if (isError(code(0,j), X_ERROR)) n_v_error++;
             }
             for (int i = 1; i < n_row; i += 2) {
@@ -486,11 +585,11 @@ public:
 
 //In this function we assume the number of time steps is the same as length L.
 double averageLogicalError(int L, double data_error_rate, int n_runs, int error_mode){
-
+    assert(L%2 == 0);
     int logical_errors_counter = 0;
     for (int i = 0; i < n_runs; ++i) {
-        ToricCode c(L*2, L);
-        for (int t = 0; t < L-1; ++t) {
+        ToricCode c(L, L);
+        for (int t = 0; t < L/2-1; ++t) {
             c.timeStep(data_error_rate, error_mode);
         }
         c.lastStep(data_error_rate, error_mode);
@@ -500,59 +599,51 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
     return (double)logical_errors_counter/(double)n_runs;
 }
 
-void errorDataOutput(int n_runs, int error_mode, int job_array_id){
+void errorDataOutput(int n_runs, int error_mode, int job_array_id = 1){
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.003; data_error_rate <0.005; data_error_rate += 0.0005) {
+    for (double data_error_rate = 0.001; data_error_rate <0.011; data_error_rate += 0.001) {
         data_error_rate_array.push_back(data_error_rate);
     }
-    std::vector<int> half_code_size_array;
-    for (int half_code_size = 6; half_code_size <= 12; half_code_size += 2) {
-        half_code_size_array.push_back(half_code_size);
+    std::vector<int> code_size_array;
+    for (int code_size = 12; code_size <= 24; code_size += 4) {
+        code_size_array.push_back(code_size);
     }
     std::ofstream file;
-    char filename [50];
+    char filename [100];
     if(error_mode == 1){
         sprintf (filename, "../data_files/FullCircuitErrorCumulativeErrorData%d.txt", job_array_id);
     }
     else{
-        sprintf (filename, "../data_files/ErrorCumulativeErrorData%d.txt", job_array_id);
+        sprintf (filename, "../data_files/CumulativeErrorData%d.txt", job_array_id);
     }
-
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
-        for (int half_code_size: half_code_size_array){
-//            printf("calculating avg log errors for code size %d with data error rate %.3f\n", 2*half_code_size, data_error_rate);
+        for (int code_size: code_size_array){
+//            printf("calculating avg log errors for code size %d with data error rate %.3f\n", code_size, data_error_rate);
 //            fflush(stdout);
-            avg_log_error = averageLogicalError(half_code_size, data_error_rate, n_runs, error_mode);
-            std::cout<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs, error_mode);
+            std::cout<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
             file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
-            file<<data_error_rate<<","<<half_code_size*2<<","<<avg_log_error<<","<<n_runs<<std::endl;
+            file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
             // code_size is the size of stabiliser grid, the size of the
             file.close();
         }
     }
 }
 
-
-
-
 int main() {
+//    load_cerr_table();
+    int cbit, nbit;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            std::tie(cbit, nbit) = pass_through_cnot(i,j);
+            printf("%d %d -> %d %d \n", i,j,cbit,nbit);
+        }
+    }
 
-//    averageLogicalError(8, 0.003, 10, 1);
-    errorDataOutput(10, 1, 1);
-//    std::ifstream inFile;
-//    inFile.open("../ParityCheckErrorTable/Data/error_table0.0040.txt");
-//    if (! inFile) {
-//        std::cerr << "unable to open file for reading" << std::endl;
-//    }
-//    double a;
-//    inFile >> a;
-//    inFile.close();
-//
-//    int a = averageLogicalError(8, 0.3, 1);
-//    std::cout<< a;
-//
-//    return 0;
+
+
+//    errorDataOutput(500, 1, 100);
 }
 
 
@@ -560,21 +651,7 @@ int main() {
 
 
 //int main(int argc, char *argv[]) {
-//
 //    int job_array_id = std::atoi(argv[1]);
-// //    averageLogicalError(8, 0.003, 10, 1);
-//    errorDataOutput(10, 1, job_array_id);
-// //    std::ifstream inFile;
-// //    inFile.open("../ParityCheckErrorTable/Data/error_table0.0040.txt");
-// //    if (! inFile) {
-// //        std::cerr << "unable to open file for reading" << std::endl;
-// //    }
-// //    double a;
-// //    inFile >> a;
-// //    inFile.close();
-// //
-// //    int a = averageLogicalError(8, 0.3, 1);
-// //    std::cout<< a;
-// //
-// //    return 0;
+//    errorDataOutput(1000, 1, job_array_id);
+//    return 0;
 //}

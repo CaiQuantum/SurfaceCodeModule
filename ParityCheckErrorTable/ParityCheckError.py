@@ -1,7 +1,6 @@
 import itertools
 import numpy as np
 import os
-import sys
 
 from ProdCnotTableGenrators import cnot_err_table, product_table
 
@@ -22,7 +21,7 @@ def get_error_table(n_trials, error_prob):
 
     result_table = np.zeros((2, 4, 4, 4, 4))
 
-    for i in range(n_trials):
+    for trial in range(n_trials):
         # prep error on ancilla and hadamard error on data qubit
         q = np.random.choice(len(pauli_error_rate), 5, p=pauli_error_rate)
 
@@ -30,13 +29,12 @@ def get_error_table(n_trials, error_prob):
         cnot_error_list = np.random.choice(len(cnot_error_rate), 4, p=cnot_error_rate)
         for i in range(1, 5):
             # commute the current error through the PERFECT cnot
-            q[0], q[i] = cnot_err_table[q[0]][q[i]]
+            q[i], q[0] = cnot_err_table[q[i]][q[0]]
             # adding error to cnot
             e0 = int(cnot_error_list[i - 1] / 4)
             ei = cnot_error_list[i - 1] % 4
             q[0] = product_table[q[0]][e0]
             q[i] = product_table[q[i]][ei]
-
         '''
         Ideally, when there is no error, we will have ancilla in |0> when the state is in even parity. Now, we add in the error,
         we then have:
@@ -52,7 +50,7 @@ def get_error_table(n_trials, error_prob):
             q[0] = 0
 
         if np.random.choice(len(readout_error_rate), p=readout_error_rate): q[0] = not q[0]
-        result_table[q[0]][q[1]][q[2]][q[3]][q[4]]+= 1
+        result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += 1
 
     cumul_result_name = "./Data/cumulative_result%.4f.npy"%error_prob
     if os.path.exists(cumul_result_name):
@@ -91,8 +89,8 @@ def get_error_table_exact(error_prob):
                 q = np.array(h)
                 # impose cnot error one by one:
                 for i in range(1, 5):
-                    # commute the current error through the PERFECT cnot
-                    q[0], q[i] = cnot_err_table[q[0]][q[i]]
+                    # commute the current error through the PERFECT cnot, NOTE the first bit is control!!!
+                    q[i], q[0] = cnot_err_table[q[i]][q[0]]
                     # adding error to cnot
                     e0 = int(c[i - 1] / 4)
                     ei = c[i - 1] % 4
@@ -125,7 +123,87 @@ def get_error_table_exact(error_prob):
 
                 result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += prob
 
-    filename = "./Data/exact_error_table%.4f.txt"%error_prob
+    filename = "./Data/new_exact_error_table%.4f.txt"%error_prob
+    file = open(filename, 'w')
+    for result in range(2):
+        for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
+            file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
+    file.close()
+
+def get_Fowler_error_table_exact(error_prob, stabiliser_type):
+    pauli_error_rate = [1-error_prob]+[error_prob/3]*3
+    cnot_error_rate = [1-error_prob]+[error_prob/15]*15
+    readout_error_rate = [1-error_prob, error_prob]
+
+    result_table = np.zeros((2, 4, 4, 4, 4))
+    '''
+    h means preparation and hadamard error,
+    c means cnot error,
+    r means readout error
+    '''
+    if stabiliser_type == 'X':
+        h_repeat = 3
+    else:
+        h_repeat = 1
+    for h in itertools.product(range(4), repeat=h_repeat):
+        for c in itertools.product(range(16), repeat=4):
+            for r in range(2):
+                q = np.zeros(5)
+                q = q.astype(int)
+                # prep error on ancilla
+                q[0] = h[0]
+                if stabiliser_type == 'X':
+                    #hadamard error on ancilla
+                    q[0] = product_table[q[0]][h[1]]
+                # impose cnot error one by one:
+                for i in range(1, 5):
+                    # commute the current error through the PERFECT cnot
+                    if stabiliser_type == 'X':
+                        q[0], q[i] = cnot_err_table[q[0]][q[i]]
+                    else:
+                        q[i], q[0] = cnot_err_table[q[i]][q[0]]
+                    # adding error to cnot
+                    e0 = int(c[i - 1] / 4)
+                    ei = c[i - 1] % 4
+                    q[0] = product_table[q[0]][e0]
+                    q[i] = product_table[q[i]][ei]
+
+                if stabiliser_type == 'X':
+                    #pass the error through Hadamard.
+                    if q[0] == 1:
+                        q[0] = 3
+                    elif q[0] == 3:
+                        q[0] = 1
+                    #hadamard error on ancilla
+                    q[0] = product_table[q[0]][h[2]]
+
+                '''
+                Ideally, when there is no error, we will have ancilla in |0> when the state is in even parity. Now, we add in the error,
+                we then have:
+                I: state:|0>,  correct
+                X: state:|1>,  wrong
+                Y: state:|1>,  wrong
+                Z: output|0>,  correct
+                then we add in error_prob chance of flipping the readout
+                '''
+                if q[0] in (1, 2):
+                    q[0] = 1
+                else:
+                    q[0] = 0
+
+                if r:
+                    q[0] = not q[0]
+
+                prob = 1
+                for i in h:
+                    prob *= pauli_error_rate[i]
+                for i in c:
+                    prob *= cnot_error_rate[i]
+                prob *= readout_error_rate[r]
+
+                result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += prob
+
+    filename = "./Data/fowler_error_table_%s%.4f.txt"%(stabiliser_type, error_prob)
     file = open(filename, 'w')
     for result in range(2):
         for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
@@ -133,14 +211,17 @@ def get_error_table_exact(error_prob):
     file.close()
 
 
-if __name__ == "__main__":
-    # error_prob = np.arange(0.005,0.015,0.001)
-    # np.random.seed(random.SystemRandom().randint(0,2**32-1))
-    # n_trials = 10000000
-    arrayID = float(sys.argv[1])
-    error_prob = (0.0005*arrayID)+0.001
-    get_error_table_exact(error_prob)
 
+# if __name__ == "__main__":
+#     # error_prob = np.arange(0.005,0.015,0.001)
+#     # np.random.seed(random.SystemRandom().randint(0,2**32-1))
+#     # n_trials = 10000000
+#     arrayID = float(sys.argv[1])
+#     error_prob = (0.001*arrayID)+0.001
+#     # get_error_table(1, 0.1)
+#     # get_error_table(2, 0.3)
+#     get_Fowler_error_table_exact(error_prob, 'X')
+    # get_Fowler_error_table_exact(error_prob, 'Z')
 
 
 

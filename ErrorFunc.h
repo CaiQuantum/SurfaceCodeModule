@@ -4,6 +4,7 @@
 
 #ifndef TORICCODE_ERRORFUNC_H
 #define TORICCODE_ERRORFUNC_H
+#include <fstream>
 enum DataError{
     NO_ERROR,
     X_ERROR,
@@ -11,27 +12,14 @@ enum DataError{
     Z_ERROR
 };
 
-inline bool isError(int code_value, int error){
-    return code_value == error or code_value == Y_ERROR;
-}
+bool isError(int code_value, int error);
 
-inline int errorComposite(int error0, int error1){
-    DataError error_f;
-    if (error0 == NO_ERROR) error_f = (DataError)error1;
-    else if (error0 == error1) error_f = NO_ERROR;
-    else if (error1 == X_ERROR){
-        if (error0 == Y_ERROR) error_f = Z_ERROR;
-        else error_f = Y_ERROR;
-    }
-    else if (error1 == Z_ERROR){
-        if (error0 == Y_ERROR) error_f = X_ERROR;
-        else error_f = Y_ERROR;
-    }
-    else if (error1 == Y_ERROR){
-        if (error0 == X_ERROR) error_f = Z_ERROR;
-        else error_f = X_ERROR;
-    }
-    else error_f = (DataError)error0;
-    return (int)error_f;
-}
+int errorComposite(int error0, int error1);
+
+void load_cerr_table();
+
+std::tuple<int, int> pass_through_cnot(int cbit, int nbit);
+
+int pass_through_H(int error)
+
 #endif //TORICCODE_ERRORFUNC_H

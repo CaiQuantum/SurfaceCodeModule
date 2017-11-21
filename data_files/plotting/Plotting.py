@@ -5,7 +5,7 @@ import pandas as pd
 from re import match
 
 os.chdir('..')
-# filename = '../CumulativeErrorData.txt'
+# output_file = 'CumulativeErrorData.txt'
 output_file = 'FullCircuitErrorCumulativeErrorData.txt'
 if os.path.exists(output_file):
     file_mode = 'a' # append if already exists
@@ -61,7 +61,7 @@ for size in size_list:
     ax.plot(error_list, df[size], label=size)
 ax.set_xlabel('data error rate')
 ax.set_ylabel('logical error rate')
-ax.set_xlim([0.0010,0.005])
+# ax.set_xlim([0.001,0.005])
 ax.legend()
 fig.tight_layout()
 plt.show(block = False)
