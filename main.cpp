@@ -7,6 +7,7 @@
 #include <fstream>
 #include "ErrorFunc.h"
 #include "HelperFunc.h"
+#include <tuple>
 
 /*To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
  * triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
@@ -312,136 +313,187 @@ public:
         std::mt19937 gen(rd());
         std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
         std::vector<std::array<int, 2>> pos_array = {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+        std::array<int, 5> stb_err;
+        /*
+         * Note for such symmetric construction, we must measure X_stb first since it is the one originally have all
+         * the Hadamard.
+         */
+
+        for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
+            Stabiliser &stabiliser = (pos_offset? stabiliserZ: stabiliserX);
+            for (int i = 0; i < stabiliser.n_row; ++i) {
+                for (int j = 0; j < stabiliser.n_col; ++j) {
+                    int ancilla= 0;
+                    int nP = 0;
+                    //randomly select one row in the error_table
+                    stb_err = error_table[error_distr(gen)];
+                    int k = 1;
+                    for (std::array<int,2> pos: pos_array){
+                        int &data_qubit = code(2*i+pos_offset+pos[0],2*j+pos_offset+pos[1]);
+                        //pass errors through hadamard and cnot
+                        data_qubit = pass_through_H(data_qubit);
+                        std::tie(data_qubit, ancilla) = pass_through_cnot(data_qubit,ancilla);
+                        //add errors to data qubit
+                        data_qubit = errorComposite(data_qubit, stb_err[k]);
+                        k++;
+                    }
+                    //add readout errors
+                    //Note since the ancilla is connected to only the 'not' in cnot, it can only detect X errors in data.
+                    if (ancilla == X_ERROR or ancilla == Y_ERROR) ancilla = 1;
+                    else ancilla = 0;
+                    stabiliser(i,j) = (ancilla+stb_err[0])%2;
+                }
+            }
+        }
+    }
+
+    //stabliser update that has two hadamard in X_stb ancilla, but no Hadamard in Z_stb ancilla, hence asymmetric.
+    void stabiliserUpdateAsym(double error_prob){
+
+        std::array<double,512> prob_array;
+        std::array<std::array<int, 5>,512> error_table;
+        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+        std::ifstream inFile;
+        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+        char filename [100];
+        std::random_device rd;
+        std::mt19937 gen(rd());
+
+        for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
+            Stabiliser &stabiliser = (pos_offset ? stabiliserZ : stabiliserX);
+            int error;
+            if (pos_offset == 0){
+                sprintf (filename, "../ParityCheckErrorTable/Data/asym_error_table_X%.4f.txt", error_prob);
+                error = Z_ERROR;
+            }
+            else{
+                sprintf(filename, "../ParityCheckErrorTable/Data/asym_error_table_Z%.4f.txt", error_prob);
+                error = X_ERROR;
+            }
+            inFile.open(filename);
+            if (!inFile) {
+                std::cerr << "unable to open file for reading" << std::endl;
+            }
+            for (int i = 0; i < 512; i++) {
+                inFile >> prob_array[i];
+                for (int j = 0; j < 5; j++) {
+                    inFile >> error_table[i][j];
+                }
+            }
+            inFile.close();
+            std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
+            std::array<int, 5> stb_err;
+            for (int i = 0; i < stabiliser.n_row; ++i) {
+                for (int j = 0; j < stabiliser.n_col; ++j) {
+                    int nP = 0;
+                    //randomly select one row in the error_table
+                    stb_err = error_table[error_distr(gen)];
+                    int k = 1;
+                    for (std::array<int, 2> pos: pos_array) {
+                        int &data_qubit = code( 2*i+pos_offset+pos[0], 2*j+pos_offset+pos[1] );
+                        //calculate real parity
+                        if (isError(data_qubit, error)) nP++;
+                        //add errors to data qubit
+                        data_qubit = errorComposite(data_qubit, stb_err[k]);
+                        k++;
+                    }
+                    //add readout errors
+                    stabiliser(i, j) = (nP + stb_err[0]) % 2;
+                }
+            }
+        }
+    }
+
+    void stabiliserUpdateAsymFullCircuit(double error_prob){
+        std::array<double,512> prob_array;
+        std::array<std::array<int, 5>,512> error_table;
+        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
+
+        std::ifstream inFile;
+        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+        char filename [100];
+        sprintf (filename, "../ParityCheckErrorTable/Data/asym_error_table_X%.4f.txt", error_prob);
+        inFile.open(filename);
+        if (! inFile) {
+            std::cerr << "unable to open file for reading" << std::endl;
+        }
+        for (int i = 0; i < 512; i++) {
+            inFile >> prob_array[i];
+            for (int j = 0; j < 5; j++) {
+                inFile >> error_table[i][j];
+            }
+        }
+        inFile.close();
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
         std::array<int, 5> X_stb_err;
-        int nX, nZ;
-        int ancilla;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
-                ancilla= 0;
-//                nX=0;
+                int ancilla = 0;
                 //randomly select one row in the error_table
                 X_stb_err = error_table[error_distr(gen)];
                 int k = 1;
                 for (std::array<int,2> pos: pos_array){
-//                    //calculate real parity
-//                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
-
-                    '''add in hadamard!!!!!'''
-
-                    std::tie(code(2*i+pos[0],2*j+pos[1]), ancilla) = pass_through_cnot(code(2*i+pos[0],2*j+pos[1]),ancilla);
-
+                    int &data_qubit = code(2*i+pos[0],2*j+pos[1]);
+                    //pass errors through cnot
+                    std::tie(ancilla, data_qubit) = pass_through_cnot(ancilla,data_qubit);
                     //add errors to data qubit
-                    code(2*i+pos[0],2*j+pos[1]) = errorComposite(code(2*i+pos[0],2*j+pos[1]), X_stb_err[k]);
+                    data_qubit = errorComposite(data_qubit, X_stb_err[k]);
                     k++;
                 }
+                //pass the ancilla through the last hadamard
+                ancilla = pass_through_H(ancilla);
+                if (ancilla == X_ERROR or ancilla == Y_ERROR) ancilla = 1;
+                else ancilla = 0;
                 //add readout errors
-                if (ancilla == )
-                stabiliserX(i,j) = (nX+X_stb_err[0])%2;
+                stabiliserX(i,j) = (ancilla+X_stb_err[0])%2;
             }
         }
+
+        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
+        sprintf (filename, "../ParityCheckErrorTable/Data/asym_error_table_Z%.4f.txt", error_prob);
+        inFile.open(filename);
+        if (! inFile) {
+            std::cerr << "unable to open file for reading" << std::endl;
+        }
+        for (int i = 0; i < 512; i++) {
+            inFile >> prob_array[i];
+            for (int j = 0; j < 5; j++) {
+                inFile >> error_table[i][j];
+            }
+        }
+        inFile.close();
+        std::discrete_distribution<> error_distr2(prob_array.begin(), prob_array.end());
         std::array<int, 5> Z_stb_err;
         for (int i = 0; i < stabiliserZ.n_row; ++i) {
             for (int j = 0; j < stabiliserZ.n_col; ++j) {
-                nZ = 0;
-                Z_stb_err = error_table[error_distr(gen)];
+                int ancilla = 0;
+                Z_stb_err = error_table[error_distr2(gen)];
                 int k = 1;
                 for (std::array<int,2> pos: pos_array){
-                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
-                    code(2*i+1+pos[0],2*j+1+pos[1]) = errorComposite(code(2*i+1+pos[0],2*j+1+pos[1]), Z_stb_err[k]);
+                    int &data_qubit = code(2*i+1+pos[0],2*j+1+pos[1]);
+                    //pass errors through cnot
+                    std::tie(data_qubit, ancilla) = pass_through_cnot(data_qubit, ancilla);
+                    data_qubit = errorComposite(data_qubit, Z_stb_err[k]);
                     k++;
                 }
-                stabiliserZ(i,j) = (nZ+Z_stb_err[0])%2;
+                if (ancilla == X_ERROR or ancilla == Y_ERROR) ancilla = 1;
+                else ancilla = 0;
+                stabiliserZ(i,j) = (ancilla+Z_stb_err[0])%2;
             }
         }
-
     }
 
-//    void stabiliserUpdate(double error_prob){
-//
-//        std::array<double,512> prob_array;
-//        std::array<std::array<int, 5>,512> error_table;
-//        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
-//
-//        std::ifstream inFile;
-//
-//        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-//        char filename [100];
-////        sprintf (filename, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
-//        sprintf (filename, "../ParityCheckErrorTable/Data/fowler_error_table_X%.4f.txt", error_prob);
-//        inFile.open(filename);
-//        if (! inFile) {
-//            std::cerr << "unable to open file for reading" << std::endl;
-//        }
-//        for (int i = 0; i < 512; i++) {
-//            inFile >> prob_array[i];
-//            for (int j = 0; j < 5; j++) {
-//                inFile >> error_table[i][j];
-//            }
-//        }
-//        inFile.close();
-//
-//        std::random_device rd;
-//        std::mt19937 gen(rd());
-//        std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
-//        std::array<int, 5> X_stb_err;
-//        int nX, nZ;
-//        for (int i = 0; i < stabiliserX.n_row; ++i) {
-//            for (int j = 0; j < stabiliserX.n_col; ++j) {
-//                nX = 0;
-//                //randomly select one row in the error_table
-//                X_stb_err = error_table[error_distr(gen)];
-//                int k = 1;
-//                for (std::array<int,2> pos: pos_array){
-//                    //calculate real parity
-//                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
-//                    //add errors to data qubit
-//                    code(2*i+pos[0],2*j+pos[1]) = errorComposite(code(2*i+pos[0],2*j+pos[1]), X_stb_err[k]);
-//                    k++;
-//                }
-//                //add readout errors
-//                stabiliserX(i,j) = (nX+X_stb_err[0])%2;
-//            }
-//        }
-//
-//        std::ifstream inFile2;
-//        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-//        char filename2 [100];
-////        sprintf (filename2, "../ParityCheckErrorTable/Data/exact_error_table%.4f.txt", error_prob);
-//        sprintf (filename2, "../ParityCheckErrorTable/Data/fowler_error_table_Z%.4f.txt", error_prob);
-//        inFile2.open(filename2);
-//        if (! inFile2) {
-//            std::cerr << "unable to open file for reading" << std::endl;
-//        }
-//        for (int i = 0; i < 512; i++) {
-//            inFile2 >> prob_array[i];
-//            for (int j = 0; j < 5; j++) {
-//                inFile2 >> error_table[i][j];
-//            }
-//        }
-//        inFile2.close();
-//        std::discrete_distribution<> error_distr2(prob_array.begin(), prob_array.end());
-//        std::array<int, 5> Z_stb_err;
-//        for (int i = 0; i < stabiliserZ.n_row; ++i) {
-//            for (int j = 0; j < stabiliserZ.n_col; ++j) {
-//                nZ = 0;
-//                Z_stb_err = error_table[error_distr2(gen)];
-//                int k = 1;
-//                for (std::array<int,2> pos: pos_array){
-//                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
-//                    code(2*i+1+pos[0],2*j+1+pos[1]) = errorComposite(code(2*i+1+pos[0],2*j+1+pos[1]), Z_stb_err[k]);
-//                    k++;
-//                }
-//                stabiliserZ(i,j) = (nZ+Z_stb_err[0])%2;
-//            }
-//        }
-//    }
 
-
-
-    //when mode = 1, we use the full error model for the parity check circuit.
-    void timeStep(double error_prob, int mode = 1){
+    //when mode = 1, we use full cirtuit error for symmetric parity check circuit.
+    //when mode = 2, we use full cirtuit error for asymmetric parity check circuit (in Fowler's paper).
+    void timeStep(double error_prob, int mode = 1, bool last = 0){
         if (mode == 1){
             stabiliserUpdate(error_prob);
+        }
+        else if (mode == 2){
+            stabiliserUpdateAsym(error_prob);
         }
         else{
             data.induceError(error_prob);
@@ -449,22 +501,7 @@ public:
             stabiliserX.induceError(error_prob);
             stabiliserZ.induceError(error_prob);
         }
-        stabiliserX.t +=1;
-        stabiliserX.addFlipLoc();
-        stabiliserX.last_code = stabiliserX._code;
-        stabiliserZ.t +=1;
-        stabiliserZ.addFlipLoc();
-        stabiliserZ.last_code = stabiliserZ._code;
-    }
-
-    void lastStep(double error_prob, int mode = 1){
-        if (mode ==1){
-            stabiliserUpdate(error_prob);
-        }
-        else{
-            data.induceError(error_prob);
-        }
-        stabiliserUpdate();
+        if (last) stabiliserUpdate();
         stabiliserX.t +=1;
         stabiliserX.addFlipLoc();
         stabiliserX.last_code = stabiliserX._code;
@@ -592,7 +629,7 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
         for (int t = 0; t < L/2-1; ++t) {
             c.timeStep(data_error_rate, error_mode);
         }
-        c.lastStep(data_error_rate, error_mode);
+        c.timeStep(data_error_rate, error_mode, 1); // the last argument 1 means it is the last step
         c.fixError();
         logical_errors_counter += c.hasLogicalError();
     }
@@ -601,7 +638,7 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
 
 void errorDataOutput(int n_runs, int error_mode, int job_array_id = 1){
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.001; data_error_rate <0.011; data_error_rate += 0.001) {
+    for (double data_error_rate = 0.006; data_error_rate <0.0091; data_error_rate += 0.0005) {
         data_error_rate_array.push_back(data_error_rate);
     }
     std::vector<int> code_size_array;
@@ -611,8 +648,11 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 1){
     std::ofstream file;
     char filename [100];
     if(error_mode == 1){
-        sprintf (filename, "../data_files/FullCircuitErrorCumulativeErrorData%d.txt", job_array_id);
+        sprintf (filename, "../data_files/CumulativeFullCircuitErrorData%d.txt", job_array_id);
     }
+    else if(error_mode == 2){
+            sprintf (filename, "../data_files/CumulativeFullAsymCircuitErrorData%d.txt", job_array_id);
+        }
     else{
         sprintf (filename, "../data_files/CumulativeErrorData%d.txt", job_array_id);
     }
@@ -631,27 +671,13 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 1){
     }
 }
 
-int main() {
-//    load_cerr_table();
-    int cbit, nbit;
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            std::tie(cbit, nbit) = pass_through_cnot(i,j);
-            printf("%d %d -> %d %d \n", i,j,cbit,nbit);
-        }
-    }
-
-
-
-//    errorDataOutput(500, 1, 100);
-}
-
-
-
-
-
-//int main(int argc, char *argv[]) {
-//    int job_array_id = std::atoi(argv[1]);
-//    errorDataOutput(1000, 1, job_array_id);
-//    return 0;
+//int main() {
+//    errorDataOutput(500, 2, 100);
 //}
+
+
+int main(int argc, char *argv[]) {
+    int job_array_id = std::atoi(argv[1]);
+    errorDataOutput(100, 2, job_array_id);
+    return 0;
+}

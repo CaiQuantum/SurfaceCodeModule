@@ -1,9 +1,25 @@
 import itertools
 import numpy as np
 import os
+import sys
 
-from ProdCnotTableGenrators import cnot_err_table, product_table
+prod_table = [[0,1,2,3],
+              [1,0,3,2],
+              [2,3,0,1],
+              [3,2,1,0]];
 
+cnot_err_table = [[[0,0], [0,1], [3,2], [3,3]],
+                  [[1,1], [1,0], [2,3], [2,2]],
+                  [[2,1], [2,0], [1,3], [1,2]],
+                  [[3,0], [3,1], [0,2], [0,3]]];
+
+def pass_through_cnot(cbit, nbit):
+    return cnot_err_table[cbit][nbit]
+
+def pass_through_H(qubit):
+    if qubit == 1: return 3
+    elif qubit == 3: return 1
+    else: return  qubit
 '''
 Here we introduce:
 4 hadamard error for data qubits
@@ -14,7 +30,7 @@ A total of 2*4^(8+4+1) = 2^(27) possibilities. (Actually possible to enumerate o
 '''
 
 
-def get_error_table(n_trials, error_prob):
+def get_error_table_trials(n_trials, error_prob):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
@@ -29,7 +45,7 @@ def get_error_table(n_trials, error_prob):
         cnot_error_list = np.random.choice(len(cnot_error_rate), 4, p=cnot_error_rate)
         for i in range(1, 5):
             # commute the current error through the PERFECT cnot
-            q[i], q[0] = cnot_err_table[q[i]][q[0]]
+            q[i], q[0] = pass_through_cnot(q[i], q[0])
             # adding error to cnot
             e0 = int(cnot_error_list[i - 1] / 4)
             ei = cnot_error_list[i - 1] % 4
@@ -61,7 +77,7 @@ def get_error_table(n_trials, error_prob):
     # print(np.sum(result_table))
     result_table /= np.sum(result_table)
 
-    filename = "./Data/error_table%.4f.txt"%error_prob
+    filename = "./Data/error_table_trials%.4f.txt"%error_prob
     file = open(filename, 'w')
     for result in range(2):
         for q1 in range(4):
@@ -71,7 +87,7 @@ def get_error_table(n_trials, error_prob):
                         file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
     file.close()
 
-def get_error_table_exact(error_prob):
+def get_error_table(error_prob):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
@@ -90,12 +106,12 @@ def get_error_table_exact(error_prob):
                 # impose cnot error one by one:
                 for i in range(1, 5):
                     # commute the current error through the PERFECT cnot, NOTE the first bit is control!!!
-                    q[i], q[0] = cnot_err_table[q[i]][q[0]]
+                    q[i], q[0] = pass_through_cnot(q[i], q[0])
                     # adding error to cnot
                     e0 = int(c[i - 1] / 4)
                     ei = c[i - 1] % 4
-                    q[0] = product_table[q[0]][e0]
-                    q[i] = product_table[q[i]][ei]
+                    q[0] = prod_table[q[0]][e0]
+                    q[i] = prod_table[q[i]][ei]
 
                 '''
                 Ideally, when there is no error, we will have ancilla in |0> when the state is in even parity. Now, we add in the error,
@@ -123,14 +139,14 @@ def get_error_table_exact(error_prob):
 
                 result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += prob
 
-    filename = "./Data/new_exact_error_table%.4f.txt"%error_prob
+    filename = "./Data/error_table%.4f.txt"%error_prob
     file = open(filename, 'w')
     for result in range(2):
         for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
             file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
     file.close()
 
-def get_Fowler_error_table_exact(error_prob, stabiliser_type):
+def get_error_table_asym(error_prob, stabiliser_type):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
@@ -153,29 +169,28 @@ def get_Fowler_error_table_exact(error_prob, stabiliser_type):
                 # prep error on ancilla
                 q[0] = h[0]
                 if stabiliser_type == 'X':
+                    #pass prep error through H
+                    q[0] = pass_through_H(q[0])
                     #hadamard error on ancilla
-                    q[0] = product_table[q[0]][h[1]]
+                    q[0] = prod_table[q[0]][h[1]]
                 # impose cnot error one by one:
                 for i in range(1, 5):
                     # commute the current error through the PERFECT cnot
                     if stabiliser_type == 'X':
-                        q[0], q[i] = cnot_err_table[q[0]][q[i]]
+                        q[0], q[i] = pass_through_cnot(q[0], q[i])
                     else:
-                        q[i], q[0] = cnot_err_table[q[i]][q[0]]
+                        q[i], q[0] = pass_through_cnot(q[i], q[0])
                     # adding error to cnot
                     e0 = int(c[i - 1] / 4)
                     ei = c[i - 1] % 4
-                    q[0] = product_table[q[0]][e0]
-                    q[i] = product_table[q[i]][ei]
+                    q[0] = prod_table[q[0]][e0]
+                    q[i] = prod_table[q[i]][ei]
 
                 if stabiliser_type == 'X':
                     #pass the error through Hadamard.
-                    if q[0] == 1:
-                        q[0] = 3
-                    elif q[0] == 3:
-                        q[0] = 1
+                    q[0] = pass_through_H(q[0])
                     #hadamard error on ancilla
-                    q[0] = product_table[q[0]][h[2]]
+                    q[0] = prod_table[q[0]][h[2]]
 
                 '''
                 Ideally, when there is no error, we will have ancilla in |0> when the state is in even parity. Now, we add in the error,
@@ -203,7 +218,7 @@ def get_Fowler_error_table_exact(error_prob, stabiliser_type):
 
                 result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += prob
 
-    filename = "./Data/fowler_error_table_%s%.4f.txt"%(stabiliser_type, error_prob)
+    filename = "./Data/asym_error_table_%s%.4f.txt"%(stabiliser_type, error_prob)
     file = open(filename, 'w')
     for result in range(2):
         for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
@@ -212,16 +227,16 @@ def get_Fowler_error_table_exact(error_prob, stabiliser_type):
 
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 #     # error_prob = np.arange(0.005,0.015,0.001)
 #     # np.random.seed(random.SystemRandom().randint(0,2**32-1))
 #     # n_trials = 10000000
-#     arrayID = float(sys.argv[1])
-#     error_prob = (0.001*arrayID)+0.001
-#     # get_error_table(1, 0.1)
-#     # get_error_table(2, 0.3)
-#     get_Fowler_error_table_exact(error_prob, 'X')
-    # get_Fowler_error_table_exact(error_prob, 'Z')
+    arrayID = float(sys.argv[1])
+    error_prob = (0.0005*arrayID)+0.006
+    # get_error_table(error_prob)
+#     # get_error_table_trials(2, 0.3)
+    get_error_table_asym(error_prob, 'X')
+    get_error_table_asym(error_prob, 'Z')
 
 
 

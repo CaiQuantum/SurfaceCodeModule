@@ -20,6 +20,6 @@ void load_cerr_table();
 
 std::tuple<int, int> pass_through_cnot(int cbit, int nbit);
 
-int pass_through_H(int error)
+int pass_through_H(int error);
 
 #endif //TORICCODE_ERRORFUNC_H

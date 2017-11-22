@@ -5,6 +5,7 @@
 #include <iostream>
 #include <array>
 #include "ErrorFunc.h"
+#include <tuple>
 
 bool isError(int code_value, int error){
     return code_value == error or code_value == Y_ERROR;
@@ -15,9 +16,25 @@ int prod_table[4][4] = {{0,1,2,3},
                         {2,3,0,1},
                         {3,2,1,0}};
 
-int errorComposite(int error0, int error1) {
+int errorComposite(const int error0, const int error1) {
     return prod_table[error0][error1];
 }
+
+int cnot_err_table[4][4][2] = {{{0,0}, {0,1}, {3,2}, {3,3}},
+                               {{1,1}, {1,0}, {2,3}, {2,2}},
+                               {{2,1}, {2,0}, {1,3}, {1,2}},
+                               {{3,0}, {3,1}, {0,2}, {0,3}}};
+std::tuple<int, int> pass_through_cnot(const int cbit, const int nbit){
+    return  std::make_tuple(cnot_err_table[cbit][nbit][0], cnot_err_table[cbit][nbit][1]);
+}
+
+
+int pass_through_H(const int error){
+    if (error == 1) return 3;
+    else if (error == 3) return 1;
+    else return error;
+}
+
 
 //inline int errorComposite(int error0, int error1) {
 //    DataError error_f;
@@ -50,16 +67,3 @@ int errorComposite(int error0, int error1) {
 //    }
 //    inFile.close();
 //}
-int cnot_err_table[4][4][2] = {{{0,0}, {0,1}, {3,2}, {3,3}},
-                                {{1,1}, {1,0}, {2,3}, {2,2}},
-                                {{2,1}, {2,0}, {1,3}, {1,2}},
-                                {{3,0}, {3,1}, {0,2}, {0,3}}};
-std::tuple<int, int> pass_through_cnot(int cbit, int nbit){
-    return  std::make_tuple(cnot_err_table[cbit][nbit][0], cnot_err_table[cbit][nbit][1]);
-}
-
-int pass_through_H(int error){
-    if (error == 1) return 3;
-    else if (error == 3) return 1;
-    else return error;
-}

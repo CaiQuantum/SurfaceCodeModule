@@ -39,8 +39,6 @@ def get_cnot_err_table():
     file.close()
     return cerr_table
 
-
-
 def get_prod_table():
     product_table = np.zeros((4,4))
     for i, P1 in enumerate(P_list):
