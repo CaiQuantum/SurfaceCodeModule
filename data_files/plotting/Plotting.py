@@ -6,13 +6,13 @@ from re import match
 
 os.chdir('..')
 # output_file = 'CumulativeErrorData.txt'
-output_file = 'FullCircuitErrorCumulativeErrorData.txt'
+output_file = 'CumulativeFullAsymCircuitErrorData.txt'
 if os.path.exists(output_file):
     file_mode = 'a' # append if already exists
 else:
     file_mode = 'w' # make a new file if not
 
-file_list = [f for f in os.listdir('.') if match('FullCircuitErrorCumulativeErrorData[0-9]+\.txt', f)]
+file_list = [f for f in os.listdir('.') if match('CumulativeFullAsymCircuitErrorData[0-9]+\.txt', f)]
 with open(output_file, file_mode) as outfile:
     for fname in file_list:
         with open(fname) as infile:

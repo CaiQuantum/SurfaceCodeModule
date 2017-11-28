@@ -19,7 +19,7 @@ def pass_through_cnot(cbit, nbit):
 def pass_through_H(qubit):
     if qubit == 1: return 3
     elif qubit == 3: return 1
-    else: return  qubit
+    else: return qubit
 '''
 Here we introduce:
 4 hadamard error for data qubits
@@ -30,7 +30,7 @@ A total of 2*4^(8+4+1) = 2^(27) possibilities. (Actually possible to enumerate o
 '''
 
 
-def get_error_table_trials(n_trials, error_prob):
+def get_sym_error_table_trials(n_trials, error_prob):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
@@ -49,8 +49,8 @@ def get_error_table_trials(n_trials, error_prob):
             # adding error to cnot
             e0 = int(cnot_error_list[i - 1] / 4)
             ei = cnot_error_list[i - 1] % 4
-            q[0] = product_table[q[0]][e0]
-            q[i] = product_table[q[i]][ei]
+            q[0] = prod_table[q[0]][e0]
+            q[i] = prod_table[q[i]][ei]
         '''
         Ideally, when there is no error, we will have ancilla in |0> when the state is in even parity. Now, we add in the error,
         we then have:
@@ -77,32 +77,33 @@ def get_error_table_trials(n_trials, error_prob):
     # print(np.sum(result_table))
     result_table /= np.sum(result_table)
 
-    filename = "./Data/error_table_trials%.4f.txt"%error_prob
+    filename = "./Data/sym_error_table_trials%.4f.txt"%error_prob
     file = open(filename, 'w')
     for result in range(2):
-        for q1 in range(4):
-            for q2 in range(4):
-                for q3 in range(4):
-                    for q4 in range(4):
-                        file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
+        for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
+            file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
     file.close()
 
-def get_error_table(error_prob):
+
+def get_sym_error_table(error_prob):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
 
     result_table = np.zeros((2, 4, 4, 4, 4))
     '''
-    h means preparation and hadamard error, 
+    p means preparation error, 
     c means cnot error, 
     r means readout error
     '''
-    for h in itertools.product(range(4), repeat=5):
-        for c in itertools.product(range(16), repeat=4):
+
+    for c in itertools.product(range(16), repeat=4):
+        for p in range(4):
             for r in range(2):
-                # prep error on ancilla and hadamard error on data qubit
-                q = np.array(h)
+                q = np.zeros(5)
+                q = q.astype(int)
+                # prep error on ancilla
+                q[0] = p
                 # impose cnot error one by one:
                 for i in range(1, 5):
                     # commute the current error through the PERFECT cnot, NOTE the first bit is control!!!
@@ -131,22 +132,21 @@ def get_error_table(error_prob):
                     q[0] = not q[0]
 
                 prob = 1
-                for i in h:
-                    prob *= pauli_error_rate[i]
+                prob *= pauli_error_rate[p]
                 for i in c:
                     prob *= cnot_error_rate[i]
                 prob *= readout_error_rate[r]
 
                 result_table[q[0]][q[1]][q[2]][q[3]][q[4]] += prob
 
-    filename = "./Data/error_table%.4f.txt"%error_prob
+    filename = "./Data/sym_error_table%.4f.txt"%error_prob
     file = open(filename, 'w')
     for result in range(2):
         for q1, q2, q3, q4 in itertools.product(range(4), repeat=4):
             file.write("%.14f %d %d %d %d %d\n"%(result_table[result][q1][q2][q3][q4], result, q1, q2, q3, q4))
     file.close()
 
-def get_error_table_asym(error_prob, stabiliser_type):
+def get_asym_error_table(error_prob, stabiliser_type):
     pauli_error_rate = [1-error_prob]+[error_prob/3]*3
     cnot_error_rate = [1-error_prob]+[error_prob/15]*15
     readout_error_rate = [1-error_prob, error_prob]
@@ -231,12 +231,15 @@ if __name__ == "__main__":
 #     # error_prob = np.arange(0.005,0.015,0.001)
 #     # np.random.seed(random.SystemRandom().randint(0,2**32-1))
 #     # n_trials = 10000000
-    arrayID = float(sys.argv[1])
-    error_prob = (0.0005*arrayID)+0.006
-    # get_error_table(error_prob)
+
+#     arrayID = float(sys.argv[1])
+#     error_prob = (0.001*arrayID)+0.001
+
+    for error_prob in np.arange(0.001, 0.01, 0.001):
+        get_sym_error_table(error_prob)
 #     # get_error_table_trials(2, 0.3)
-    get_error_table_asym(error_prob, 'X')
-    get_error_table_asym(error_prob, 'Z')
+#     get_asym_error_table(error_prob, 'X')
+#     get_asym_error_table(error_prob, 'Z')
 
 
 
@@ -244,38 +247,6 @@ if __name__ == "__main__":
 
 
 
-
-# print(result_table)
-
-# // //0: ancilla
-# // //1-4: data qubits
-# //std::array<int, 5> qubits = {0};
-# //
-# //std::array<double, 4> pauli_error_rate;
-# //pauli_error_rate[0] = 1 - error_prob;
-# //for (int i = 1; i < 4; ++i) pauli_error_rate[i] = error_prob / 3;
-# //std::array<double, 16> cnot_error_rate;
-# //cnot_error_rate[0] = 1 - error_prob;
-# //for (int i = 1; i < 16; ++i) cnot_error_rate[i] = error_prob / 15;
-# //
-# //std::random_device rd;
-# //std::mt19937 gen(rd());
-# //std::discrete_distribution<> pauli_error_distr(pauli_error_rate.begin(), pauli_error_rate.end());
-# //std::discrete_distribution<> cnot_error_distr(cnot_error_rate.begin(), cnot_error_rate.end());
-# //std::discrete_distribution<> readout_error_distr({1-error_prob, error_prob});
-# //
-# // //Prep error on ancilla:
-# //qubits[0] = pauli_error_distr(gen);
-# //
-# // //Hadamard error on data qubit:
-# //for (int i = 1; i < 5; ++i) {
-# //qubits[i] = pauli_error_distr(gen);
-# //}
-#
-#
-#
-# //cnot error on qubit and ancilla:
-# //}
 
 
 
