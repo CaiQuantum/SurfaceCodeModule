@@ -123,10 +123,10 @@ public:
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
                 if (isError(_code[i][j], Z_ERROR)) {
-                    error_locations[0].emplace_back({i,j});
+                    error_locations[0].push_back({i,j});
                 }
                 else if (isError(_code[i][j], X_ERROR)){
-                    error_locations[1].emplace_back({i,j});
+                    error_locations[1].push_back({i,j});
                 }
             }
         }
@@ -176,7 +176,7 @@ public:
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
                 if (_code[i][j] != last_code[i][j]) {
-                    flip_locs.emplace_back({i,j,t});
+                    flip_locs.push_back({i,j,t});
                 }
             }
         }
