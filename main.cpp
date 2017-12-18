@@ -123,10 +123,10 @@ public:
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
                 if (isError(_code[i][j], Z_ERROR)) {
-                    error_locations[0].push_back({i,j});
+                    error_locations[0].emplace_back({i,j});
                 }
                 else if (isError(_code[i][j], X_ERROR)){
-                    error_locations[1].push_back({i,j});
+                    error_locations[1].emplace_back({i,j});
                 }
             }
         }
@@ -176,7 +176,8 @@ public:
         for (int i = 0; i < n_row; i++) {
             for (int j = 0; j < n_col; j++) {
                 if (_code[i][j] != last_code[i][j]) {
-                    flip_locs.push_back({i,j,t});}
+                    flip_locs.emplace_back({i,j,t});
+                }
             }
         }
     }
@@ -301,9 +302,9 @@ public:
             if (sym){
                 sprintf(filename, "../ParityCheckErrorTable/Data/sym_error_table%.4f.txt", error_prob);
 
-                //Hadamard gates will be applied throughout the data grid, before each stb measurement,
-                //Hence, we
+                //Hadamard gates will be applied throughout the data grid, before each stb measurement
                 std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
+                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
                 for (int i = 0; i < data.n_row; ++i) {
                     for (int j = 0; j < data.n_col; ++j) {
                         data.code(i,j) = pass_through_H(data.code(i,j));
@@ -529,13 +530,14 @@ public:
         PerfectMatching* pm = stabiliser->getErrorMatching();
         int n_error = stabiliser->flip_locs.size();
         std::vector <int> error_label;
+        error_label.reserve(n_error);
+        for (int k = 0; k < n_error; ++k) error_label.emplace_back(k);
         std::array <int, 2> start, loc, min_path;
 
         std::binomial_distribution<> direction(1, 0.5);
 
 
         int  ver_sign, hor_sign, ver_steps, hor_steps;
-        for (int k = 0; k < n_error; ++k) error_label.push_back(k);
         std::set<int> error_corrected; //std::array are implicitly copied.
         for (int error: error_label){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
@@ -638,11 +640,11 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
 void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
     std::vector<double> data_error_rate_array;
     for (double data_error_rate = 0.001; data_error_rate <0.01; data_error_rate += 0.001) {
-        data_error_rate_array.push_back(data_error_rate);
+        data_error_rate_array.emplace_back(data_error_rate);
     }
     std::vector<int> code_size_array;
     for (int code_size = 12; code_size <= 24; code_size += 4) {
-        code_size_array.push_back(code_size);
+        code_size_array.emplace_back(code_size);
     }
     std::ofstream file;
     char filename [100];
@@ -671,7 +673,7 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
 }
 
 int main() {
-    errorDataOutput(500, 1);
+    errorDataOutput(1, 1);
 }
 
 
