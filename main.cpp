@@ -20,6 +20,9 @@
 
 std::random_device rd;
 std::mt19937 rand_gen(rd());
+const int TD_DISTANCE_RATIO = 1;
+const char* proj_dir = "../../ElectronShuttling";
+//const char* proj_dir = "../";
 
 class Code{
 public:
@@ -198,7 +201,8 @@ public:
         for (int i = 0; i < n_error; ++i) {
             for (int j = 0; j < i ; ++j) {
                 //add spatial distance and time distance together as cost.
-                int d = spatialDistance(flip_locs[i], flip_locs[j]) + abs(flip_locs[i][2] - flip_locs[j][2]);
+                int d = spatialDistance(flip_locs[i], flip_locs[j])
+                        + TD_DISTANCE_RATIO * abs(flip_locs[i][2] - flip_locs[j][2]);
                 pm->AddEdge(error_label[i], error_label[j], d);
             }
         }
@@ -275,9 +279,9 @@ public:
 
     /*
      * sym = 0: two hadamard in X_stb ancilla, but no Hadamard in Z_stb ancilla
-     * sym = 1: hadamard applied two whole qubit array (NOT within parity measument circuit) before X/Z measurements
+     * sym = 1: hadamard applied to whole qubit array (NOT within parity measurement circuit) before X/Z measurements
      */
-    void stabiliserUpdate(double error_prob, int sym = 1){
+    void stabiliserUpdate(double error_prob, int sym = 0){
 
         std::array<double,512> prob_array;
         std::array<std::array<int, 5>,512> error_table;
@@ -287,31 +291,34 @@ public:
         char filename [100];
 
         for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
-            int error;
+            int tracked_error;
             Stabiliser *stabiliser;
-            if (pos_offset == 0){
-                stabiliser = &stabiliserX;
-                sprintf (filename, "../ParityCheckErrorTable/Data/asym_error_table_X%.4f.txt", error_prob);
-                error = Z_ERROR;
-            }
-            else{
-                stabiliser = &stabiliserZ;
-                sprintf(filename, "../ParityCheckErrorTable/Data/asym_error_table_Z%.4f.txt", error_prob);
-                error = X_ERROR;
-            }
             if (sym){
-                sprintf(filename, "../ParityCheckErrorTable/Data/sym_error_table%.4f.txt", error_prob);
+                sprintf(filename, "%s/Data/ErrorTable/sym_error_table%.4f.txt", proj_dir,error_prob);
 
-                //Hadamard gates will be applied throughout the data grid, before each stb measurement
+                //Erroneous hadamard gates will be applied throughout the data grid, before each stb measurement
+                //I think we should incoperate the hadamard errors here into the error table.
                 std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
-                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
                 for (int i = 0; i < data.n_row; ++i) {
                     for (int j = 0; j < data.n_col; ++j) {
                         data.code(i,j) = pass_through_H(data.code(i,j));
                         data.code(i,j) = errorComposite(data.code(i,j), H_error(rand_gen));
                     }
                 }
-                error = X_ERROR;
+                tracked_error = X_ERROR;
+                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
+            }
+            else {
+                if (pos_offset == 0) {
+                    stabiliser = &stabiliserX;
+                    sprintf(filename, "%s/Data/ErrorTable/asym_error_table_X%.4f.txt", proj_dir, error_prob);
+                    tracked_error = Z_ERROR;
+                }
+                else {
+                    stabiliser = &stabiliserZ;
+                    sprintf(filename, "%s/Data/ErrorTable/asym_error_table_Z%.4f.txt", proj_dir, error_prob);
+                    tracked_error = X_ERROR;
+                }
             }
 
             inFile.open(filename);
@@ -336,7 +343,7 @@ public:
                     for (std::array<int, 2> pos: pos_array) {
                         int &data_qubit = code( 2*i+pos_offset+pos[0], 2*j+pos_offset+pos[1] );
                         //calculate real parity
-                        if (isError(data_qubit, error)) nP++;
+                        if (isError(data_qubit, tracked_error)) nP++;
                         //add errors to data qubit
                         data_qubit = errorComposite(data_qubit, stb_err[k]);
                         k++;
@@ -348,152 +355,12 @@ public:
         }
     }
 
-
-
-    void stabiliserUpdateAsymFullCircuit(double error_prob){
-        std::array<double,512> prob_array;
-        std::array<std::array<int, 5>,512> error_table;
-        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
-        std::ifstream inFile;
-        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-        char filename[100];
-        for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
-            Stabiliser *stabiliser;
-            if (pos_offset == 0) {
-                stabiliser = &stabiliserX;
-                sprintf(filename, "../ParityCheckErrorTable/Data/asym_error_table_X%.4f.txt", error_prob);
-            }
-            else {
-                stabiliser = &stabiliserZ;
-                sprintf(filename, "../ParityCheckErrorTable/Data/asym_error_table_Z%.4f.txt", error_prob);
-            }
-            inFile.open(filename);
-            if (!inFile) {
-                std::cerr << "unable to open file for reading" << std::endl;
-            }
-            for (int i = 0; i < 512; i++) {
-                inFile >> prob_array[i];
-                for (int j = 0; j < 5; j++) {
-                    inFile >> error_table[i][j];
-                }
-            }
-            inFile.close();
-
-            std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
-            std::array<int, 5> stb_err;
-            for (int i = 0; i < stabiliser->n_row; ++i) {
-                for (int j = 0; j < stabiliser->n_col; ++j) {
-                    int ancilla = 0;
-                    //randomly select one row in the error_table
-                    stb_err = error_table[error_distr(rand_gen)];
-                    int k = 1;
-                    for (std::array<int, 2> pos: pos_array) {
-                        int &data_qubit = code(2 * i + pos_offset + pos[0], 2 * j + pos_offset + pos[1]);
-                        if (pos_offset == 0) {
-                            //pass errors through cnot
-                            std::tie(ancilla, data_qubit) = pass_through_cnot(ancilla, data_qubit);
-                        }
-                        else{
-                            //pass errors through cnot
-                            std::tie(data_qubit, ancilla) = pass_through_cnot(data_qubit, ancilla);
-                        }
-                        //add errors to data qubit
-                        data_qubit = errorComposite(data_qubit, stb_err[k]);
-                        k++;
-                    }
-                    if (pos_offset == 0) {
-                        //pass the ancilla through the last hadamard
-                        ancilla = pass_through_H(ancilla);
-                    }
-                    if (isError(ancilla, X_ERROR)) ancilla = 1;
-                    else ancilla = 0;
-                    //add readout errors
-                    stabiliser->code(i, j) = (ancilla + stb_err[0]) % 2;
-                }
-            }
-        }
-    }
-
-    void stabiliserUpdateSymFullCircuit(double error_prob){
-
-        std::array<double,512> prob_array;
-        std::array<std::array<int, 5>,512> error_table;
-
-        std::ifstream inFile;
-
-        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-        char filename [100];
-        sprintf (filename, "../ParityCheckErrorTable/Data/sym_error_table%.4f.txt", error_prob);
-        inFile.open(filename);
-        if (! inFile) {
-            std::cerr << "unable to open file for reading" << std::endl;
-        }
-        for (int i = 0; i < 512; i++) {
-            inFile >> prob_array[i];
-            for (int j = 0; j < 5; j++) {
-                inFile >> error_table[i][j];
-            }
-        }
-        inFile.close();
-
-        std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
-        std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
-        std::vector<std::array<int, 2>> pos_array = {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
-        std::array<int, 5> stb_err;
-        /*
-         * Note for such symmetric construction, we must measure X_stb first since it is the one originally have all
-         * the Hadamard.
-         */
-
-        for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
-            Stabiliser *stabiliser;
-            if (pos_offset == 0) {
-                stabiliser = &stabiliserX;
-            }
-            else {
-                stabiliser = &stabiliserZ;
-            }
-
-            for (int i = 0; i < data.n_row; ++i) {
-                for (int j = 0; j < data.n_col; ++j) {
-                    data.code(i,j) = pass_through_H(data.code(i,j));
-                    data.code(i,j) = errorComposite(data.code(i,j), H_error(rand_gen));
-                }
-            }
-
-            for (int i = 0; i < stabiliser->n_row; ++i) {
-                for (int j = 0; j < stabiliser->n_col; ++j) {
-                    int ancilla = 0;
-                    //randomly select one row in the error_table
-                    stb_err = error_table[error_distr(rand_gen)];
-                    int k = 1;
-                    for (std::array<int,2> pos: pos_array){
-                        int &data_qubit = code(2*i+pos_offset+pos[0],2*j+pos_offset+pos[1]);
-                        //pass errors through cnot
-                        std::tie(data_qubit, ancilla) = pass_through_cnot(data_qubit,ancilla);
-                        //add errors to data qubit
-                        data_qubit = errorComposite(data_qubit, stb_err[k]);
-                        k++;
-                    }
-                    //add readout errors
-                    //Note since the ancilla is connected to only the 'not' in cnot, it can only detect X errors in data.
-                    if (isError(ancilla, X_ERROR)) ancilla = 1;
-                    else ancilla = 0;
-                    stabiliser->code(i,j) = (ancilla+stb_err[0])%2;
-                }
-            }
-        }
-    }
-
-
-    //when mode = 1, we use full cirtuit error for symmetric parity check circuit.
-    //when mode = 2, we use full cirtuit error for asymmetric parity check circuit (in Fowler's paper).
-    void timeStep(double error_prob, int mode = 1, bool is_last_step = 0){
-        if (mode == 1){
-            stabiliserUpdate(error_prob);
-        }
-        else if (mode == 2){
-            stabiliserUpdateSymFullCircuit(error_prob);
+    //when mode = 0, we use error table for asymmetric parity check circuit (in Fowler's paper).
+    //when mode = 1, we use error table for symmetric parity check circuit.
+    //when mode >= 1, we induce random errors to qubits (ignore the circuit structure)
+    void timeStep(double error_prob, int mode = 0, bool is_last_step = 0){
+        if (mode <= 1){
+            stabiliserUpdate(error_prob, mode);
         }
         else{
             data.induceError(error_prob);
@@ -501,6 +368,7 @@ public:
             stabiliserX.induceError(error_prob);
             stabiliserZ.induceError(error_prob);
         }
+        //In the last step, the data qubit are measured, hence, we can know the exact parity of the data.
         if (is_last_step) stabiliserUpdate();
 
         stabiliserX.t +=1;
@@ -637,6 +505,10 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
     return (double)logical_errors_counter/(double)n_runs;
 }
 
+
+//when error_mode = 0, we use error table for asymmetric parity check circuit (in Fowler's paper).
+//when error_mode = 1, we use error table for symmetric parity check circuit.
+//when error_mode >= 1, we induce random errors to qubits (ignore the circuit structure)
 void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
     std::vector<double> data_error_rate_array;
     for (double data_error_rate = 0.001; data_error_rate <0.01; data_error_rate += 0.001) {
@@ -648,14 +520,15 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
     }
     std::ofstream file;
     char filename [100];
-    if(error_mode == 1){
-        sprintf (filename, "../data_files/CumulativeFullCircuitErrorData%d.txt", job_array_id);
+
+    if(error_mode == 0){
+        sprintf (filename, "%s/Data/ThresholdData/asym_error_threshold_data%d.txt", proj_dir, job_array_id);
     }
-    else if(error_mode == 2){
-            sprintf (filename, "../data_files/CumulativeFullAsymCircuitErrorData%d.txt", job_array_id);
+    else if(error_mode == 1){
+            sprintf (filename, "%s/Data/ThresholdData/sym_error_threshold_data%d.txt", proj_dir, job_array_id);
         }
     else{
-        sprintf (filename, "../data_files/CumulativeErrorData%d.txt", job_array_id);
+        sprintf (filename, "%s/Data/ThresholdData/error_threshold_data%d.txt", proj_dir, job_array_id);
     }
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
@@ -673,9 +546,8 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
 }
 
 int main() {
-    errorDataOutput(1, 1);
+    errorDataOutput(100, 0);
 }
-
 
 //int main(int argc, char *argv[]) {
 //    int job_array_id = std::atoi(argv[1]);
