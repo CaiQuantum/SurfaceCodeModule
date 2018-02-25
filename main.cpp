@@ -23,6 +23,12 @@ std::mt19937 rand_gen(rd());
 const int TD_DISTANCE_RATIO = 1;
 const char* proj_dir = "../../ElectronShuttling";
 //const char* proj_dir = "../";
+// For sym the error_table_filename will be "%s/Data/ErrorTable/%s%.4f.txt" % (proj_dir, input_main_name, error_prob)
+// For asym the error table filename will be "%s/Data/ErrorTable/%s_Z_%.4f.txt" % (proj_dir, input_main_name, error_rate)
+const char* input_main_name = "full_error_table_0.10";
+//Output file name will be "%s/Data/ThresholdData/%s%d.txt" % (proj_dir, output_main_name, job_array_id)
+const char* output_main_name = "cumulative_threshold_data_0.10";
+
 
 class Code{
 public:
@@ -288,13 +294,13 @@ public:
         std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
         std::ifstream inFile;
         //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-        char filename [100];
+        char error_table_filename [100];
 
         for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
             int tracked_error;
             Stabiliser *stabiliser;
             if (sym){
-                sprintf(filename, "%s/Data/ErrorTable/sym_error_table%.4f.txt", proj_dir,error_prob);
+                sprintf(error_table_filename, "%s/Data/ErrorTable/%s%.4f.txt", proj_dir, input_main_name,error_prob);
 
                 //Erroneous hadamard gates will be applied throughout the data grid, before each stb measurement
                 //I think we should incoperate the hadamard errors here into the error table.
@@ -311,17 +317,19 @@ public:
             else {
                 if (pos_offset == 0) {
                     stabiliser = &stabiliserX;
-                    sprintf(filename, "%s/Data/ErrorTable/asym_error_table_X%.4f.txt", proj_dir, error_prob);
+//                    sprintf(input_file, "%s/Data/ErrorTable/asym_error_table_X%.4f.txt", proj_dir, error_prob);
+                    sprintf(error_table_filename, "%s/Data/ErrorTable/%s_X_%.4f.txt", proj_dir, input_main_name, error_prob);
                     tracked_error = Z_ERROR;
                 }
                 else {
                     stabiliser = &stabiliserZ;
-                    sprintf(filename, "%s/Data/ErrorTable/asym_error_table_Z%.4f.txt", proj_dir, error_prob);
+//                    sprintf(input_file, "%s/Data/ErrorTable/asym_error_table_Z%.4f.txt", proj_dir, error_prob);
+                    sprintf(error_table_filename, "%s/Data/ErrorTable/%s_Z_%.4f.txt", proj_dir, input_main_name, error_prob);
                     tracked_error = X_ERROR;
                 }
             }
 
-            inFile.open(filename);
+            inFile.open(error_table_filename);
             if (!inFile) {
                 std::cerr << "unable to open file for reading" << std::endl;
             }
@@ -519,17 +527,10 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
         code_size_array.emplace_back(code_size);
     }
     std::ofstream file;
-    char filename [100];
+    char output_file [100];
 
-    if(error_mode == 0){
-        sprintf (filename, "%s/Data/ThresholdData/asym_error_threshold_data%d.txt", proj_dir, job_array_id);
-    }
-    else if(error_mode == 1){
-            sprintf (filename, "%s/Data/ThresholdData/sym_error_threshold_data%d.txt", proj_dir, job_array_id);
-        }
-    else{
-        sprintf (filename, "%s/Data/ThresholdData/error_threshold_data%d.txt", proj_dir, job_array_id);
-    }
+    sprintf (output_file, "%s/Data/ThresholdData/%s%d.txt", proj_dir, output_main_name, job_array_id);
+
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
         for (int code_size: code_size_array){
@@ -537,7 +538,7 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
 //            fflush(stdout);
             avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs, error_mode);
             std::cout<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
-            file.open(filename, std::fstream::in | std::fstream::out | std::fstream::app);
+            file.open(output_file, std::fstream::in | std::fstream::out | std::fstream::app);
             file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
             // code_size is the size of stabiliser grid, the size of the
             file.close();
@@ -546,7 +547,7 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
 }
 
 int main() {
-    errorDataOutput(100, 0);
+    errorDataOutput(10000, 0);
 }
 
 //int main(int argc, char *argv[]) {
