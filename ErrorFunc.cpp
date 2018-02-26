@@ -7,18 +7,18 @@
 #include "ErrorFunc.h"
 #include <tuple>
 
-bool isError(int code_value, int error){
-    return code_value == error or code_value == Y_ERROR;
-}
+//inline bool isError(int code_value, int error){
+//    return code_value == error or code_value == Y_ERROR;
+//}
 
-int prod_table[4][4] = {{0,1,2,3},
-                        {1,0,3,2},
-                        {2,3,0,1},
-                        {3,2,1,0}};
-
-int errorComposite(const int error0, const int error1) {
-    return prod_table[error0][error1];
-}
+//const int prod_table[4][4] = {{0,1,2,3},
+//                        {1,0,3,2},
+//                        {2,3,0,1},
+//                        {3,2,1,0}};
+//
+//inline int errorComposite(const int error0, const int error1) {
+//    return prod_table[error0][error1];
+//}
 
 int cnot_err_table[4][4][2] = {{{0,0}, {0,1}, {3,2}, {3,3}},
                                {{1,1}, {1,0}, {2,3}, {2,2}},

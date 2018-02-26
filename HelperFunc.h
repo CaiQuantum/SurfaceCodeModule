@@ -16,7 +16,13 @@ void printMatrix(InputType M){
     printf("\n");
 }
 
-int getSign(int a){
+inline int getSign(int a){
     return (a>0) - (a<0);
 }
+
+
+
+
+
+
 #endif //TORICCODE_HELPERFUNC_H

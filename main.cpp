@@ -8,6 +8,7 @@
 #include "ErrorFunc.h"
 #include "HelperFunc.h"
 #include <tuple>
+#include <stdexcept>
 
 /*To make perfectmatching.h to work, we need to first delete example.cpp in blossom_dir, then we also cannot use the
  * triangle package as suggested due to lack of X11. We use import project in Clion to rewrite Cmake. Remember to exclude
@@ -16,6 +17,11 @@
  * There are two parameters you can tweak in the final version of this program. The first one is the time-spatial relative
  * weight in perfectmatching. i.e. how important is time distance relative to spatial distance when we are calculating
  * the perfect matching distance.
+ * */
+
+/* To do list:
+ * Think about how to merge the Hadamard over all data qubits in sym stb update into error tables.
+ *
  * */
 
 std::random_device rd;
@@ -27,7 +33,10 @@ const char* proj_dir = "../../ElectronShuttling";
 // For asym the error table filename will be "%s/Data/ErrorTable/%s_Z_%.4f.txt" % (proj_dir, input_main_name, error_rate)
 const char* input_main_name = "full_error_table_0.10";
 //Output file name will be "%s/Data/ThresholdData/%s%d.txt" % (proj_dir, output_main_name, job_array_id)
-const char* output_main_name = "cumulative_threshold_data_0.10";
+const char* output_main_name = "threshold_data_0.10";
+
+
+
 
 
 class Code{
@@ -70,23 +79,11 @@ public:
         else return d_2;
     }
 
-    std::array<int, 2> minPath(std::array<int,2> start, std::array<int,2> end){
+    inline std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
         return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
     }
 
-    std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
-        return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
-    }
-
-    int distance(std::array<int,2> loc1, std::array<int,2> loc2){
-        int d;
-        d = std::min(abs(loc1[0] - loc2[0]),
-                     n_row - abs(loc1[0] - loc2[0])) +
-            std::min(abs(loc1[1] - loc2[1]),
-                     n_col - abs(loc1[1] - loc2[1]));
-        return d;
-    }
-    int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
+    inline int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
         int d;
         d = std::min(abs(loc1[0] - loc2[0]),
                      n_row - abs(loc1[0] - loc2[0])) +
@@ -162,11 +159,16 @@ public:
     StabiliserType stabiliser_type;
     std::vector<std::array<int,3>> flip_locs;
     std::vector<std::vector<int>> last_code;
+    std::discrete_distribution<> error_distr;
     int t = 0;
 public:
-//    Stabiliser(int n_row, int n_col): Code(n_row, n_col){}
-    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type): Code(n_row, n_col), stabiliser_type(stabiliser_type){
+    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type):
+            Code(n_row, n_col), stabiliser_type(stabiliser_type){
+        std::array<double,512> error_prob{};
+        error_prob[0] = 1;
+        std::discrete_distribution<> error_distr(error_prob.begin(), error_prob.end());
         last_code = _code;
+
     }
     void induceError(double error_prob){
         assert(error_prob <= 1);
@@ -194,8 +196,6 @@ public:
     PerfectMatching* getErrorMatching(){
 //        assert (flip_locs.size() != 0);
         int n_error = flip_locs.size();
-        std::vector <int> error_label(n_error);
-        for (int k = 0; k < n_error; ++k) error_label[k] = k;
 
         int n_edges = n_error*(n_error-1)/2;
         auto *pm = new PerfectMatching(n_error, n_edges);
@@ -209,7 +209,7 @@ public:
                 //add spatial distance and time distance together as cost.
                 int d = spatialDistance(flip_locs[i], flip_locs[j])
                         + TD_DISTANCE_RATIO * abs(flip_locs[i][2] - flip_locs[j][2]);
-                pm->AddEdge(error_label[i], error_label[j], d);
+                pm->AddEdge(i, j, d);
             }
         }
         pm->Solve();
@@ -227,8 +227,12 @@ public:
     int n_col;
 
 public:
-    ToricCode(int n_row, int n_col): n_row(n_row), n_col(n_col), data(n_row, n_col/2),
-                                       stabiliserX(n_row/2, n_col/2, X_STB), stabiliserZ(n_row/2, n_col/2, Z_STB){
+    ToricCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
+              std::discrete_distribution<> Z_error_distr):
+            n_row(n_row), n_col(n_col), data(n_row, n_col/2),
+            stabiliserX(n_row/2, n_col/2, X_STB), stabiliserZ(n_row/2, n_col/2, Z_STB){
+        stabiliserX.error_distr = X_error_distr;
+        stabiliserZ.error_distr = Z_error_distr;
         assert(n_row%2==0);
         assert(n_col%2==0);
     }
@@ -259,8 +263,8 @@ public:
         printf("\n");
     }
 
-    void stabiliserUpdate(){
-        std::vector<std::array<int, 2>> pos_array= {{0,1}, {-1,0}, {1,0}, {0,(-1)}};
+    void perfectStabiliserUpdate(){
+        std::array<std::array<int, 2>, 4> pos_array { {{0,1}, {0,(-1)}, {1, 0}, {-1, 0}} };
         int nX, nZ;
         for (int i = 0; i < stabiliserX.n_row; ++i) {
             for (int j = 0; j < stabiliserX.n_col; ++j) {
@@ -287,66 +291,42 @@ public:
      * sym = 0: two hadamard in X_stb ancilla, but no Hadamard in Z_stb ancilla
      * sym = 1: hadamard applied to whole qubit array (NOT within parity measurement circuit) before X/Z measurements
      */
-    void stabiliserUpdate(double error_prob, int sym = 0){
+    void stabiliserUpdate(){
 
-        std::array<double,512> prob_array;
-        std::array<std::array<int, 5>,512> error_table;
-        std::vector<std::array<int, 2>> pos_array =  {{0,1}, {0,(-1)}, {1,0}, {-1,0}};
-        std::ifstream inFile;
-        //If file can't be read, maybe the filename buffer is NOT LONG ENOUGH!!!
-        char error_table_filename [100];
+        std::array<std::array<int, 2>, 4> pos_array { {{0,1}, {0,(-1)}, {1, 0}, {-1, 0}} };
 
         for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
             int tracked_error;
             Stabiliser *stabiliser;
-            if (sym){
-                sprintf(error_table_filename, "%s/Data/ErrorTable/%s%.4f.txt", proj_dir, input_main_name,error_prob);
-
-                //Erroneous hadamard gates will be applied throughout the data grid, before each stb measurement
-                //I think we should incoperate the hadamard errors here into the error table.
-                std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
-                for (int i = 0; i < data.n_row; ++i) {
-                    for (int j = 0; j < data.n_col; ++j) {
-                        data.code(i,j) = pass_through_H(data.code(i,j));
-                        data.code(i,j) = errorComposite(data.code(i,j), H_error(rand_gen));
-                    }
-                }
-                tracked_error = X_ERROR;
-                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
+//            if (sym){
+//                //Erroneous hadamard gates will be applied throughout the data grid, before each stb measurement
+//                //I think we should incoperate the hadamard errors here into the error table.
+//                std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
+//                for (int i = 0; i < data.n_row; ++i) {
+//                    for (int j = 0; j < data.n_col; ++j) {
+//                        data.code(i,j) = pass_through_H(data.code(i,j));
+//                        data.code(i,j) = errorComposite(data.code(i,j), H_error(rand_gen));
+//                    }
+//                }
+//                tracked_error = X_ERROR;
+//                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
+//            }
+//            else {
+            if (pos_offset == 0) {
+                stabiliser = &stabiliserX;
+                tracked_error = Z_ERROR;
             }
             else {
-                if (pos_offset == 0) {
-                    stabiliser = &stabiliserX;
-//                    sprintf(input_file, "%s/Data/ErrorTable/asym_error_table_X%.4f.txt", proj_dir, error_prob);
-                    sprintf(error_table_filename, "%s/Data/ErrorTable/%s_X_%.4f.txt", proj_dir, input_main_name, error_prob);
-                    tracked_error = Z_ERROR;
-                }
-                else {
-                    stabiliser = &stabiliserZ;
-//                    sprintf(input_file, "%s/Data/ErrorTable/asym_error_table_Z%.4f.txt", proj_dir, error_prob);
-                    sprintf(error_table_filename, "%s/Data/ErrorTable/%s_Z_%.4f.txt", proj_dir, input_main_name, error_prob);
-                    tracked_error = X_ERROR;
-                }
+                stabiliser = &stabiliserZ;
+                tracked_error = X_ERROR;
             }
 
-            inFile.open(error_table_filename);
-            if (!inFile) {
-                std::cerr << "unable to open file for reading" << std::endl;
-            }
-            for (int i = 0; i < 512; i++) {
-                inFile >> prob_array[i];
-                for (int j = 0; j < 5; j++) {
-                    inFile >> error_table[i][j];
-                }
-            }
-            inFile.close();
-            std::discrete_distribution<> error_distr(prob_array.begin(), prob_array.end());
             std::array<int, 5> stb_err;
             for (int i = 0; i < stabiliser->n_row; ++i) {
                 for (int j = 0; j < stabiliser->n_col; ++j) {
                     int nP = 0;
                     //randomly select one row in the error_table
-                    stb_err = error_table[error_distr(rand_gen)];
+                    stb_err = error_table[stabiliser->error_distr(rand_gen)];
                     int k = 1;
                     for (std::array<int, 2> pos: pos_array) {
                         int &data_qubit = code( 2*i+pos_offset+pos[0], 2*j+pos_offset+pos[1] );
@@ -363,21 +343,13 @@ public:
         }
     }
 
-    //when mode = 0, we use error table for asymmetric parity check circuit (in Fowler's paper).
-    //when mode = 1, we use error table for symmetric parity check circuit.
-    //when mode >= 1, we induce random errors to qubits (ignore the circuit structure)
-    void timeStep(double error_prob, int mode = 0, bool is_last_step = 0){
-        if (mode <= 1){
-            stabiliserUpdate(error_prob, mode);
-        }
-        else{
-            data.induceError(error_prob);
-            stabiliserUpdate();
-            stabiliserX.induceError(error_prob);
-            stabiliserZ.induceError(error_prob);
-        }
+    // we use error table for asymmetric parity check circuit (in Fowler's paper).
+    void timeStep(bool is_last_step = true){
+
+        stabiliserUpdate();
+
         //In the last step, the data qubit are measured, hence, we can know the exact parity of the data.
-        if (is_last_step) stabiliserUpdate();
+        if (is_last_step) perfectStabiliserUpdate();
 
         stabiliserX.t +=1;
         stabiliserX.addFlipLoc();
@@ -386,6 +358,26 @@ public:
         stabiliserZ.addFlipLoc();
         stabiliserZ.last_code = stabiliserZ._code;
     }
+
+    // we induce random errors to qubits (ignore the circuit structure)
+    void randomErrorTimeStep(double error_prob, bool is_last_step = false){
+
+        data.induceError(error_prob);
+        perfectStabiliserUpdate();
+        stabiliserX.induceError(error_prob);
+        stabiliserZ.induceError(error_prob);
+
+        //In the last step, the data qubit are measured, hence, we can know the exact parity of the data.
+        if (is_last_step) perfectStabiliserUpdate();
+
+        stabiliserX.t +=1;
+        stabiliserX.addFlipLoc();
+        stabiliserX.last_code = stabiliserX._code;
+        stabiliserZ.t +=1;
+        stabiliserZ.addFlipLoc();
+        stabiliserZ.last_code = stabiliserZ._code;
+    }
+
 
     //when annihilating errors, we aways go in row direction first, then in col direction.
     void fixError(StabiliserType stabiliser_type){
@@ -405,31 +397,28 @@ public:
 
         PerfectMatching* pm = stabiliser->getErrorMatching();
         int n_error = stabiliser->flip_locs.size();
-        std::vector <int> error_label;
-        error_label.reserve(n_error);
-        for (int k = 0; k < n_error; ++k) error_label.emplace_back(k);
         std::array <int, 2> start, loc, min_path;
 
         std::binomial_distribution<> direction(1, 0.5);
 
 
-        int  ver_sign, hor_sign, ver_steps, hor_steps;
+//        int  ver_sign, hor_sign, ver_steps, hor_steps;
         std::set<int> error_corrected; //std::array are implicitly copied.
-        for (int error: error_label){
+        for (int error = 0; error < n_error; ++error){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
                 int paired_error = pm->GetMatch(error);
                 min_path = stabiliser->minSpatialPath(stabiliser->flip_locs[error],
                                                stabiliser->flip_locs[paired_error]);
-                ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
-                hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
+                int ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
+                int hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
                 start = {2* stabiliser->flip_locs[error][0] + offset, 2* stabiliser->flip_locs[error][1] + offset};
                 loc = start; //implicit copy of start
 
                 //We might want to use step_sign *loc[0] < step_sign * end[0] condition to substitue ver_steps. But the
                 //situation is much more complicated when we need to cross the boundary.
-                ver_steps = 0;
-                hor_steps = 0;
+                int ver_steps = 0;
+                int hor_steps = 0;
                 // ////Comment out this section if we don't want error correction along random min path.
                 while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
                     if (direction(rand_gen)){
@@ -498,17 +487,45 @@ public:
 };
 
 //In this function we assume the number of time steps is the same as length L.
-double averageLogicalError(int L, double data_error_rate, int n_runs, int error_mode){
+double averageLogicalError(int L, double data_error_rate, int n_runs){
     assert(L%2 == 0);
     int logical_errors_counter = 0;
-    for (int i = 0; i < n_runs; ++i) {
-        ToricCode c(L, L);
-        for (int t = 0; t < L/2-1; ++t) {
-            c.timeStep(data_error_rate, error_mode);
+    std::array<std::array<double,512>, 2> error_prob;
+
+    for (int stb = 0; stb < 2; ++stb) {
+        std::ifstream inFile;
+        char error_table_filename [100];
+        if (stb == X_STB) {
+            sprintf(error_table_filename, "%s/Data/ErrorTable/%s_X_%.4f.txt", proj_dir, input_main_name,
+                    data_error_rate);
         }
-        c.timeStep(data_error_rate, error_mode, 1); // the last argument 1 means it is the last step
-        c.fixError();
-        logical_errors_counter += c.hasLogicalError();
+        else{
+            sprintf(error_table_filename, "%s/Data/ErrorTable/%s_Z_%.4f.txt", proj_dir, input_main_name,
+                    data_error_rate);
+        }
+        inFile.open(error_table_filename);
+        if (!inFile) {
+            char error_message[150];
+            sprintf(error_message, "Could not open %s", error_table_filename);
+            throw std::runtime_error(error_message);
+        }
+        for (int i = 0; i < 512; i++) {
+            inFile >> error_prob[stb][i];
+            inFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+        inFile.close();
+    }
+    std::discrete_distribution<> X_error_distr(error_prob[0].begin(), error_prob[0].end());
+    std::discrete_distribution<> Z_error_distr(error_prob[1].begin(), error_prob[1].end());
+
+    for (int i = 0; i < n_runs; ++i) {
+        ToricCode toric_code(L, L, X_error_distr, Z_error_distr);
+        for (int t = 0; t < L/2-1; ++t) {
+            toric_code.timeStep(false);
+        }
+        toric_code.timeStep(true); // the last argument true means it is the last step
+        toric_code.fixError();
+        logical_errors_counter += toric_code.hasLogicalError();
     }
     return (double)logical_errors_counter/(double)n_runs;
 }
@@ -517,9 +534,9 @@ double averageLogicalError(int L, double data_error_rate, int n_runs, int error_
 //when error_mode = 0, we use error table for asymmetric parity check circuit (in Fowler's paper).
 //when error_mode = 1, we use error table for symmetric parity check circuit.
 //when error_mode >= 1, we induce random errors to qubits (ignore the circuit structure)
-void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
+void errorDataOutput(int n_runs, int job_array_id = 100){
     std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.001; data_error_rate <0.01; data_error_rate += 0.001) {
+    for (double data_error_rate = 0.001; data_error_rate <0.0053; data_error_rate += 0.0005) {
         data_error_rate_array.emplace_back(data_error_rate);
     }
     std::vector<int> code_size_array;
@@ -529,14 +546,14 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
     std::ofstream file;
     char output_file [100];
 
-    sprintf (output_file, "%s/Data/ThresholdData/%s%d.txt", proj_dir, output_main_name, job_array_id);
+    sprintf (output_file, "%s/Data/ThresholdData/%s_run%d.txt", proj_dir, output_main_name, job_array_id);
 
     double avg_log_error;
     for (double data_error_rate : data_error_rate_array) {
         for (int code_size: code_size_array){
 //            printf("calculating avg log errors for code size %d with data error rate %.3f\n", code_size, data_error_rate);
 //            fflush(stdout);
-            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs, error_mode);
+            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
             std::cout<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
             file.open(output_file, std::fstream::in | std::fstream::out | std::fstream::app);
             file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
@@ -547,7 +564,7 @@ void errorDataOutput(int n_runs, int error_mode, int job_array_id = 100){
 }
 
 int main() {
-    errorDataOutput(10000, 0);
+    errorDataOutput(10000);
 }
 
 //int main(int argc, char *argv[]) {
