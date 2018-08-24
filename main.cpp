@@ -1,9 +1,10 @@
+#include <Python.h>
 #include <iostream>
 #include <vector>
 #include <random>
 #include <array>
 #include <set>
-#include "PerfectMatching.h"
+#include <PerfectMatching.h>
 #include <fstream>
 #include "ErrorFunc.h"
 #include "HelperFunc.h"
@@ -22,22 +23,17 @@
 /* To do list:
  * Think about how to merge the Hadamard over all data qubits in sym stb update into error tables.
  *
+ * Implementation of planar code:
+ *
+ * Add extra two row and two column to the toric code.
+ *
  * */
+
+
 
 std::random_device rd;
 std::mt19937 rand_gen(rd());
 const int TD_DISTANCE_RATIO = 1;
-const char* proj_dir = "../../ElectronShuttling";
-//const char* proj_dir = "../";
-// For sym the error_table_filename will be "%s/Data/ErrorTable/%s%.4f.txt" % (proj_dir, input_main_name, error_prob)
-// For asym the error table filename will be "%s/Data/ErrorTable/%s_Z_%.4f.txt" % (proj_dir, input_main_name, error_rate)
-const char* input_main_name = "full_error_table_0.10";
-//Output file name will be "%s/Data/ThresholdData/%s%d.txt" % (proj_dir, output_main_name, job_array_id)
-const char* output_main_name = "threshold_data_0.10";
-
-
-
-
 
 class Code{
 public:
@@ -56,40 +52,21 @@ public:
     }
 //REMEMBER to add destructor.
     int& code(int row, int col){
-        row = (row% n_row + n_row)%n_row;
-        col = (col% n_col + n_col)%n_col;
+        // Here we assume we will only call row that are in  -n_row < row < n_row
+        // Otherwise we need to use row = (row% n_row + n_row)%n_row;
+        row = (row + n_row)%n_row;
+        col = (col + n_col)%n_col;
         return _code[row][col];
     }
 
     int& operator()(int row, int col){
-        row = (row% n_row + n_row)%n_row;
-        col = (col% n_col + n_col)%n_col;
+        row = (row + n_row)%n_row;
+        col = (col + n_col)%n_col;
         return _code[row][col];
     }
 
     void printCode(){
         printMatrix(_code);
-    }
-
-    int minLength(const int start, const int end, const int n_L){
-        int sign = (end > start) - (start > end);
-        int d_1 = end - start;
-        int d_2 = sign*(abs(d_1)-n_L);
-        if (abs(d_1) < abs(d_2)) return d_1;
-        else return d_2;
-    }
-
-    inline std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
-        return {minLength(start[0], end[0], n_row),minLength(start[1], end[1], n_col)};
-    }
-
-    inline int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
-        int d;
-        d = std::min(abs(loc1[0] - loc2[0]),
-                     n_row - abs(loc1[0] - loc2[0])) +
-            std::min(abs(loc1[1] - loc2[1]),
-                     n_col - abs(loc1[1] - loc2[1]));
-        return d;
     }
 
 };
@@ -160,22 +137,25 @@ public:
     std::vector<std::array<int,3>> flip_locs;
     std::vector<std::vector<int>> last_code;
     std::discrete_distribution<> error_distr;
+    std::array<int,2> loc_in_toric;
+    int planar;
     int t = 0;
+    int n_error=0; //number of errors in stb excluding boundary stb errors
+
 public:
-    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type):
-            Code(n_row, n_col), stabiliser_type(stabiliser_type){
+    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type, std::array<int,2> loc_in_toric, int planar=0):
+            Code(n_row, n_col), stabiliser_type(stabiliser_type), loc_in_toric(loc_in_toric), planar(planar){
         std::array<double,512> error_prob{};
         error_prob[0] = 1;
         std::discrete_distribution<> error_distr(error_prob.begin(), error_prob.end());
         last_code = _code;
-
     }
     void induceError(double error_prob){
         assert(error_prob <= 1);
         std::binomial_distribution<> error_occur(1, error_prob);
 
-        for(int i = 0; i < n_row; i++){
-            for(int j = 0; j < n_col; j++){
+        for(int i = 0; i < n_row - loc_in_toric[0] * planar; i++){
+            for(int j = 0; j < n_col - loc_in_toric[1] * planar; j++){
                 if (error_occur(rand_gen)){
                     _code[i][j] = not _code[i][j];
                 }
@@ -184,8 +164,8 @@ public:
     }
 
     void addFlipLoc(){
-        for (int i = 0; i < n_row; i++) {
-            for (int j = 0; j < n_col; j++) {
+        for (int i = 0; i < n_row - loc_in_toric[0] * planar; i++) {
+            for (int j = 0; j < n_col - loc_in_toric[1] * planar; j++) {
                 if (_code[i][j] != last_code[i][j]) {
                     flip_locs.push_back({i,j,t});
                 }
@@ -193,69 +173,178 @@ public:
         }
     }
 
+    int minLinePath(const int start, const int end, const int n_L){
+        int d_1 = end - start;
+        int sign_d1 = (end > start) - (start > end);
+        int d_2 = d_1 - sign_d1 * n_L;
+        if (abs(d_1) < abs(d_2)) return d_1;
+        else return d_2;
+    }
+
+    inline std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
+        return {minLinePath(start[0], end[0], n_row), minLinePath(start[1], end[1], n_col)};
+    }
+
+//    inline int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
+//        int d0 = abs(loc1[0] - loc2[0]);
+//        int d1 = abs(loc1[1] - loc2[1]);
+//        int d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1);
+//
+//        return d;
+//    }
+
+    inline int distance(std::array<int,3> loc1, std::array<int,3> loc2){
+        // we create d here to reduce the need to access element of loc, hence increasing ths speed
+        int d0 = abs(loc1[0] - loc2[0]);
+        int d1 = abs(loc1[1] - loc2[1]);
+        int d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+        return d;
+    }
+
+    std::array<int, 3> getBoundaryLoc(std::array<int,3> loc){
+        std::array<int, 3> boundary_loc = loc;
+
+        if (loc_in_toric[0] == 1){
+            boundary_loc[0] = n_row - 1;
+        }
+        else{
+            boundary_loc[1] = n_col - 1;
+        }
+
+        return boundary_loc;
+    }
+
+
+    inline int distanceToBoundary(std::array<int,3> loc){
+        if (loc_in_toric[0] == 1){
+            // loc[0] + 1 is actually, loc[0] - (-1). -1 and n_row -1 are both index of the boundary.
+            // we create d here to reduce the need to access element of loc, hence increasing ths speed
+            int d = loc[0];
+            return std::min(d + 1, n_row - 1 - d);
+        }
+        else{
+            int d = loc[1];
+            return std::min(d + 1, n_col - 1 - d);
+        }
+
+//        return spatialDistance(loc, getBoundaryLoc(loc));
+    }
+
     PerfectMatching* getErrorMatching(){
 //        assert (flip_locs.size() != 0);
-        int n_error = flip_locs.size();
+        n_error = flip_locs.size();
 
-        int n_edges = n_error*(n_error-1)/2;
-        auto *pm = new PerfectMatching(n_error, n_edges);
+        std::vector<std::array<int,3>> edges;
+        if (planar){
+            // reserving space for all the edges related to mirror errors.
+            edges.reserve(n_error + n_error* (n_error-1)/2);
+            // Adding bouandary mirror errors
+            for (int i = 0; i < n_error; ++i) {
+                flip_locs.push_back(getBoundaryLoc(flip_locs[i]));
+                edges.push_back({i, (i + n_error), distanceToBoundary(flip_locs[i])});
+            }
 
+            // Adding edges between mirror errors
+            for (int i = n_error; i < 2 * n_error; ++i) {
+                for (int j = n_error; j < i; ++j) {
+                    edges.push_back({i, j , 0});
+                }
+            }
+
+            for (int i = 0; i < n_error; ++i) {
+                for (int j = 0; j < i ; ++j) {
+                    //add spatial distance and time distance together as cost.
+                    int d_link = distance(flip_locs[i], flip_locs[j]);
+
+                    int d_bound = edges[i][2] + edges[j][2];
+
+                    if (d_link < d_bound){
+                        edges.push_back({i, j , d_link});
+                    }
+                }
+            }
+
+        }
+        else{
+            edges.reserve(n_error* (n_error-1)/2);
+            for (int i = 0; i < n_error; ++i) {
+                for (int j = 0; j < i ; ++j) {
+                    //add spatial distance and time distance together as cost.
+                    int d = distance(flip_locs[i], flip_locs[j]);
+                    edges.push_back({i, j ,d});
+                }
+            }
+        }
+
+        int n_nodes = flip_locs.size();
+        int n_edges = edges.size();
+
+        auto *pm = new PerfectMatching(n_nodes, n_edges);
         struct PerfectMatching::Options options;
         options.verbose = false;
         pm->options = options;
-
-        for (int i = 0; i < n_error; ++i) {
-            for (int j = 0; j < i ; ++j) {
-                //add spatial distance and time distance together as cost.
-                int d = spatialDistance(flip_locs[i], flip_locs[j])
-                        + TD_DISTANCE_RATIO * abs(flip_locs[i][2] - flip_locs[j][2]);
-                pm->AddEdge(i, j, d);
-            }
+        for (std::array<int,3> e: edges){
+            pm->AddEdge(e[0], e[1], e[2]);
         }
+
         pm->Solve();
 
         return pm;
     }
 };
 
-class ToricCode{
+class SurfaceCode{
 public:
-    Data data;
+    Data primal_data;
+    Data dual_data;
     Stabiliser stabiliserX;
     Stabiliser stabiliserZ;
     int n_row;
     int n_col;
+    int planar;
 
 public:
-    ToricCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
-              std::discrete_distribution<> Z_error_distr):
-            n_row(n_row), n_col(n_col), data(n_row, n_col/2),
-            stabiliserX(n_row/2, n_col/2, X_STB), stabiliserZ(n_row/2, n_col/2, Z_STB){
+    SurfaceCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
+                std::discrete_distribution<> Z_error_distr, int planar=0):
+            n_row(n_row + planar), n_col(n_col+planar),
+            primal_data((n_row+planar)/2, (n_col+planar)/2),
+            dual_data((n_row+planar)/2, (n_col+planar)/2),
+            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar),
+            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar),
+            planar(planar){
         stabiliserX.error_distr = X_error_distr;
         stabiliserZ.error_distr = Z_error_distr;
-        assert(n_row%2==0);
-        assert(n_col%2==0);
+        assert((n_row+planar)%2==0);
+        assert((n_col+planar)%2==0);
     }
 
     int& code(int row, int col){
-        row = (row% n_row + n_row)%n_row;
-        col = (col% n_col + n_col)%n_col;
-        if (row%2 == 0 and col%2 == 0) return stabiliserX._code[row/2][col/2];
-        else if (row%2 == 1 and col%2 == 1) return stabiliserZ._code[(row-1)/2][(col-1)/2];
-        else if (row%2 == 0) return data._code[row][(col-1)/2];
-        else return data._code[row][col/2]; //equivalent to else if (row%2 == 1)
+        /* The top right corner of out code looks like
+         *
+         *  primal_d      Z      primal_d      Z
+         *      X      dual_d        X      dual_d
+         *  primal_d      Z      primal_d      Z
+         *      X      dual_d        X      dual_d
+         * */
+
+        row = (row + n_row)%n_row;
+        col = (col + n_col)%n_col;
+        if (row%2 == 0 and col%2 == 0) return primal_data._code[row/2][col/2];
+        else if (row%2 == 1 and col%2 == 1) return dual_data._code[(row -1)/2][(col-1)/2];
+        else if (row%2 == 0) return stabiliserZ._code[row/2][(col-1)/2];
+        else return stabiliserX._code[(row-1)/2][col/2];
     }
     //red: 31, grn: 32, yel: 33, blu: 34, mag: 35, cyn: 36, wht: 37
     void printCode(){
-        for (int i = 0; i < data.n_row; i++) {
-            for (int j = 0; j < data.n_col; j++) {
+        for (int i = 0; i < primal_data.n_row * 2; i++) {
+            for (int j = 0; j < primal_data.n_col; j++) {
                 if (i%2 == 0) {
-                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX(i/2, j));
-                    printf("%2d ", data(i, j));
+                    printf("%2d ", primal_data(i/2, j));
+                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ(i/2, j));
                 }
                 else {
-                    printf("%2d ", data(i, j));
-                    printf("\x1B[34m%2d\x1B[0m ", stabiliserZ((i-1)/2, j));
+                    printf("\x1B[31m%2d\x1B[0m ", stabiliserX((i-1)/2, j));
+                    printf("%2d ", dual_data((i-1)/2, j));
                 }
             }
             printf("\n");
@@ -264,28 +353,45 @@ public:
     }
 
     void perfectStabiliserUpdate(){
+        // Cannot change the order, not even to {{1, 0}, {0,(-1)}, {0, 1}, {-1, 0}}
         std::array<std::array<int, 2>, 4> pos_array { {{0,1}, {0,(-1)}, {1, 0}, {-1, 0}} };
-        int nX, nZ;
-        for (int i = 0; i < stabiliserX.n_row; ++i) {
-            for (int j = 0; j < stabiliserX.n_col; ++j) {
-                nX = 0;
-                for (std::array<int,2> pos: pos_array){
-                    if (isError(code(2*i+pos[0],2*j+pos[1]), Z_ERROR)) nX++;
-                }
-                stabiliserX(i,j) = nX%2;
+        for (int stb = 0; stb < 2; ++stb)  {
+            int tracked_error;
+            Stabiliser *stabiliser;
+
+            if (stb == Z_STB) {
+                stabiliser = &stabiliserZ;
+                tracked_error = X_ERROR;
             }
-        }
-        for (int i = 0; i < stabiliserZ.n_row; ++i) {
-            for (int j = 0; j < stabiliserZ.n_col; ++j) {
-                nZ = 0;
-                for (std::array<int,2> pos: pos_array){
-                    if (isError(code(2*i+1+pos[0],2*j+1+pos[1]), X_ERROR)) nZ++;
+            else {
+                stabiliser = &stabiliserX;
+                tracked_error = Z_ERROR;
+            }
+
+            std::array<int, 2> pos_offset = stabiliser->loc_in_toric;
+            for (int i = 0; i < (stabiliser->n_row - pos_offset[0] * planar); ++i) {
+                for (int j = 0; j < (stabiliser->n_col - pos_offset[1] * planar); ++j) {
+                    int nP = 0;
+                    for (std::array<int, 2> pos: pos_array) {
+                        int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1]);
+                        //calculate real parity
+                        if (isError(data_qubit, tracked_error)) nP++;
+                    }
+                    stabiliser->code(i, j) = nP % 2;
                 }
-                stabiliserZ(i,j) = nZ%2;
             }
         }
     }
 
+    void reset_boundary(){
+        assert(planar);
+        for (int i = 0; i < dual_data.n_row; i++){
+            dual_data(i, dual_data.n_col-1) = NO_ERROR;
+        }
+        for (int j = 0; j < dual_data.n_col; j++){
+            dual_data(dual_data.n_row - 1, j) = NO_ERROR;
+        }
+    }
 
     /*
      * sym = 0: two hadamard in X_stb ancilla, but no Hadamard in Z_stb ancilla
@@ -295,41 +401,28 @@ public:
 
         std::array<std::array<int, 2>, 4> pos_array { {{0,1}, {0,(-1)}, {1, 0}, {-1, 0}} };
 
-        for (int pos_offset = 0; pos_offset < 2; ++pos_offset) {
+        for (int stb = 0; stb < 2; ++stb)  {
             int tracked_error;
             Stabiliser *stabiliser;
-//            if (sym){
-//                //Erroneous hadamard gates will be applied throughout the data grid, before each stb measurement
-//                //I think we should incoperate the hadamard errors here into the error table.
-//                std::discrete_distribution<> H_error({1-error_prob, error_prob/3, error_prob/3, error_prob/3});
-//                for (int i = 0; i < data.n_row; ++i) {
-//                    for (int j = 0; j < data.n_col; ++j) {
-//                        data.code(i,j) = pass_through_H(data.code(i,j));
-//                        data.code(i,j) = errorComposite(data.code(i,j), H_error(rand_gen));
-//                    }
-//                }
-//                tracked_error = X_ERROR;
-//                //Need to think carefully about why pass through H and set error to X is necessary here?!!??!?
-//            }
-//            else {
-            if (pos_offset == 0) {
-                stabiliser = &stabiliserX;
-                tracked_error = Z_ERROR;
-            }
-            else {
+
+            if (stb == Z_STB) {
                 stabiliser = &stabiliserZ;
                 tracked_error = X_ERROR;
             }
+            else {
+                stabiliser = &stabiliserX;
+                tracked_error = Z_ERROR;
+            }
 
-            std::array<int, 5> stb_err;
-            for (int i = 0; i < stabiliser->n_row; ++i) {
-                for (int j = 0; j < stabiliser->n_col; ++j) {
+            std::array<int, 2> pos_offset = stabiliser->loc_in_toric;
+            for (int i = 0; i < (stabiliser->n_row - pos_offset[0] * planar); ++i) {
+                for (int j = 0; j < (stabiliser->n_col - pos_offset[1] * planar); ++j) {
                     int nP = 0;
                     //randomly select one row in the error_table
-                    stb_err = error_table[stabiliser->error_distr(rand_gen)];
+                    std::array<int, 5> stb_err = error_table[stabiliser->error_distr(rand_gen)];
                     int k = 1;
                     for (std::array<int, 2> pos: pos_array) {
-                        int &data_qubit = code( 2*i+pos_offset+pos[0], 2*j+pos_offset+pos[1] );
+                        int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1] );
                         //calculate real parity
                         if (isError(data_qubit, tracked_error)) nP++;
                         //add errors to data qubit
@@ -341,15 +434,18 @@ public:
                 }
             }
         }
+        if (planar){
+            reset_boundary();
+        }
     }
+
 
     // we use error table for asymmetric parity check circuit (in Fowler's paper).
     void timeStep(bool is_last_step = true){
 
-        stabiliserUpdate();
-
         //In the last step, the data qubit are measured, hence, we can know the exact parity of the data.
         if (is_last_step) perfectStabiliserUpdate();
+        else stabiliserUpdate();
 
         stabiliserX.t +=1;
         stabiliserX.addFlipLoc();
@@ -362,7 +458,8 @@ public:
     // we induce random errors to qubits (ignore the circuit structure)
     void randomErrorTimeStep(double error_prob, bool is_last_step = false){
 
-        data.induceError(error_prob);
+        primal_data.induceError(error_prob);
+        dual_data.induceError(error_prob);
         perfectStabiliserUpdate();
         stabiliserX.induceError(error_prob);
         stabiliserZ.induceError(error_prob);
@@ -383,55 +480,52 @@ public:
     void fixError(StabiliserType stabiliser_type){
         Stabiliser* stabiliser;
         DataError  ERROR;
-        int offset;
         if (stabiliser_type == X_STB){
             stabiliser = &stabiliserX;
             ERROR = Z_ERROR;
-            offset = 0;
         }
         else{
             stabiliser = &stabiliserZ;
             ERROR = X_ERROR;
-            offset = 1;
         }
-
+        std::array<int, 2> offset = stabiliser->loc_in_toric;
         PerfectMatching* pm = stabiliser->getErrorMatching();
-        int n_error = stabiliser->flip_locs.size();
-        std::array <int, 2> start, loc, min_path;
+//        int n_error = stabiliser->n_error;
+//        std::array <int, 2> start, loc, min_path;
 
-        std::binomial_distribution<> direction(1, 0.5);
+//        std::binomial_distribution<> direction(1, 0.5);
 
 
 //        int  ver_sign, hor_sign, ver_steps, hor_steps;
         std::set<int> error_corrected; //std::array are implicitly copied.
-        for (int error = 0; error < n_error; ++error){
+        for (int error = 0; error < stabiliser->n_error; ++error){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
                 int paired_error = pm->GetMatch(error);
-                min_path = stabiliser->minSpatialPath(stabiliser->flip_locs[error],
-                                               stabiliser->flip_locs[paired_error]);
+                std::array <int, 2> min_path = stabiliser->minSpatialPath(stabiliser->flip_locs[error],
+                                                                          stabiliser->flip_locs[paired_error]);
                 int ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
                 int hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
-                start = {2* stabiliser->flip_locs[error][0] + offset, 2* stabiliser->flip_locs[error][1] + offset};
-                loc = start; //implicit copy of start
+                std::array <int, 2> start = {2 * stabiliser->flip_locs[error][0] + offset[0], 2 * stabiliser->flip_locs[error][1] + offset[1]};
+                std::array <int, 2> loc = start; //implicit copy of start
 
                 //We might want to use step_sign *loc[0] < step_sign * end[0] condition to substitue ver_steps. But the
                 //situation is much more complicated when we need to cross the boundary.
                 int ver_steps = 0;
                 int hor_steps = 0;
                 // ////Comment out this section if we don't want error correction along random min path.
-                while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
-                    if (direction(rand_gen)){
-                        code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
-                        loc[0] += 2*ver_sign;
-                        ver_steps +=1;
-                    }
-                    else{
-                        code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
-                        loc[1] += 2*hor_sign;
-                        hor_steps +=1;
-                    }
-                }
+//                while (ver_steps < abs(min_path[0]) and hor_steps < abs(min_path[1])){
+//                    if (direction(rand_gen)){
+//                        code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
+//                        loc[0] += 2*ver_sign;
+//                        ver_steps +=1;
+//                    }
+//                    else{
+//                        code(loc[0], loc[1] + hor_sign) = errorComposite(code(loc[0], loc[1] + hor_sign), ERROR);
+//                        loc[1] += 2*hor_sign;
+//                        hor_steps +=1;
+//                    }
+//                }
                 // ///////////////////////////////
                 while (ver_steps < abs(min_path[0])){
                     code(loc[0] + ver_sign, loc[1]) = errorComposite(code(loc[0] + ver_sign, loc[1]), ERROR);
@@ -463,19 +557,23 @@ public:
         int n_v_error = 0;
         int n_h_error = 0;
         if (stb == X_STB){
-            for (int j = 0; j < n_col; j += 2) {
-                if (isError(code(1,j), Z_ERROR)) n_v_error++; // check horizontally if any vertical error cuts through
+            for (int j = 0; j < primal_data.n_col; j ++) {
+                if (isError(primal_data(0, j), Z_ERROR)) n_v_error++; // check horizontally if any vertical error cuts through
             }
-            for (int i = 0; i < n_row; i += 2) {
-                if (isError(code(i,1), Z_ERROR)) n_h_error++;
+            if (not planar) {
+                for (int i = 0; i < dual_data.n_row; i++) {
+                    if (isError(dual_data(i, 0), Z_ERROR)) n_h_error++;
+                }
             }
         }
         else if (stb == Z_STB){
-            for (int j = 1; j < n_col; j += 2) {
-                if (isError(code(0,j), X_ERROR)) n_v_error++;
+            for (int i = 0; i < primal_data.n_row; i ++) {
+                if (isError(primal_data(i,0), X_ERROR)) n_h_error++;
             }
-            for (int i = 1; i < n_row; i += 2) {
-                if (isError(code(i,0), X_ERROR)) n_h_error++;
+            if (not planar) {
+                for (int j = 0; j < dual_data.n_col; j ++) {
+                    if (isError(dual_data(0,j), X_ERROR)) n_v_error++;
+                }
             }
         }
         return ((n_h_error%2) or (n_v_error%2));
@@ -484,24 +582,26 @@ public:
     bool hasLogicalError(){
         return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
     }
+//    double hasLogicalError(){
+//        return ((double)hasLogicalError(X_STB) + (double)hasLogicalError(Z_STB))/2.0;
+//    }
 };
 
+
 //In this function we assume the number of time steps is the same as length L.
-double averageLogicalError(int L, double data_error_rate, int n_runs){
-    assert(L%2 == 0);
-    int logical_errors_counter = 0;
+double averageLogicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
+//    assert(L%2 == 0);
+    double logical_errors_counter = 0;
     std::array<std::array<double,512>, 2> error_prob;
 
     for (int stb = 0; stb < 2; ++stb) {
         std::ifstream inFile;
         char error_table_filename [100];
         if (stb == X_STB) {
-            sprintf(error_table_filename, "%s/Data/ErrorTable/%s_X_%.4f.txt", proj_dir, input_main_name,
-                    data_error_rate);
+            sprintf(error_table_filename, "%s_X.txt", main_file_name);
         }
         else{
-            sprintf(error_table_filename, "%s/Data/ErrorTable/%s_Z_%.4f.txt", proj_dir, input_main_name,
-                    data_error_rate);
+            sprintf(error_table_filename, "%s_Z.txt", main_file_name);
         }
         inFile.open(error_table_filename);
         if (!inFile) {
@@ -519,56 +619,129 @@ double averageLogicalError(int L, double data_error_rate, int n_runs){
     std::discrete_distribution<> Z_error_distr(error_prob[1].begin(), error_prob[1].end());
 
     for (int i = 0; i < n_runs; ++i) {
-        ToricCode toric_code(L, L, X_error_distr, Z_error_distr);
-        for (int t = 0; t < L/2-1; ++t) {
-            toric_code.timeStep(false);
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+//        surface_code.printCode();
+        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+            surface_code.timeStep(false);
         }
-        toric_code.timeStep(true); // the last argument true means it is the last step
-        toric_code.fixError();
-        logical_errors_counter += toric_code.hasLogicalError();
+        surface_code.timeStep(true); // the last argument true means it is the last step
+        surface_code.fixError();
+        logical_errors_counter += (double) surface_code.hasLogicalError();
     }
-    return (double)logical_errors_counter/(double)n_runs;
+    return logical_errors_counter/(double)n_runs;
 }
 
 
-//when error_mode = 0, we use error table for asymmetric parity check circuit (in Fowler's paper).
-//when error_mode = 1, we use error table for symmetric parity check circuit.
-//when error_mode >= 1, we induce random errors to qubits (ignore the circuit structure)
-void errorDataOutput(int n_runs, int job_array_id = 100){
-    std::vector<double> data_error_rate_array;
-    for (double data_error_rate = 0.001; data_error_rate <0.0053; data_error_rate += 0.0005) {
-        data_error_rate_array.emplace_back(data_error_rate);
-    }
-    std::vector<int> code_size_array;
-    for (int code_size = 12; code_size <= 24; code_size += 4) {
-        code_size_array.emplace_back(code_size);
-    }
-    std::ofstream file;
-    char output_file [100];
+static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
+    int L;
+    int n_runs;
+    const char* main_file_name;
+    double res;
+    int planar;
+    double time_step_ratio;
+    if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
+        return NULL;
+    res = averageLogicalError(L, n_runs, main_file_name, planar, time_step_ratio);
+    return PyFloat_FromDouble(res);
+}
 
-    sprintf (output_file, "%s/Data/ThresholdData/%s_run%d.txt", proj_dir, output_main_name, job_array_id);
 
-    double avg_log_error;
-    for (double data_error_rate : data_error_rate_array) {
-        for (int code_size: code_size_array){
-//            printf("calculating avg log errors for code size %d with data error rate %.3f\n", code_size, data_error_rate);
-//            fflush(stdout);
-            avg_log_error = averageLogicalError(code_size, data_error_rate, n_runs);
-            std::cout<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
-            file.open(output_file, std::fstream::in | std::fstream::out | std::fstream::app);
-            file<<data_error_rate<<","<<code_size<<","<<avg_log_error<<","<<n_runs<<std::endl;
-            // code_size is the size of stabiliser grid, the size of the
-            file.close();
+double averagePhysicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
+//    assert(L%2 == 0);
+    int physical_errors_counter = 0;
+    std::array<std::array<double,512>, 2> error_prob;
+
+    for (int stb = 0; stb < 2; ++stb) {
+        std::ifstream inFile;
+        char error_table_filename [100];
+        if (stb == X_STB) {
+            sprintf(error_table_filename, "%s_X.txt", main_file_name);
         }
+        else{
+            sprintf(error_table_filename, "%s_Z.txt", main_file_name);
+        }
+        inFile.open(error_table_filename);
+        if (!inFile) {
+            char error_message[150];
+            sprintf(error_message, "Could not open %s", error_table_filename);
+            throw std::runtime_error(error_message);
+        }
+        for (int i = 0; i < 512; i++) {
+            inFile >> error_prob[stb][i];
+            inFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+        inFile.close();
     }
+    std::discrete_distribution<> X_error_distr(error_prob[0].begin(), error_prob[0].end());
+    std::discrete_distribution<> Z_error_distr(error_prob[1].begin(), error_prob[1].end());
+
+    for (int i = 0; i < n_runs; ++i) {
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+//        surface_code.printCode();
+        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+            surface_code.timeStep(false);
+        }
+        surface_code.timeStep(true); // the last argument true means it is the last step
+        physical_errors_counter += surface_code.stabiliserX.flip_locs.size();
+        physical_errors_counter += surface_code.stabiliserZ.flip_locs.size();
+    }
+    return (double)physical_errors_counter/(double)n_runs;
 }
 
-int main() {
-    errorDataOutput(10000);
+
+static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
+    int L;
+    int n_runs;
+    const char* main_file_name;
+    double res;
+    int planar;
+    double time_step_ratio;
+    if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
+        return NULL;
+    res = averagePhysicalError(L, n_runs, main_file_name, planar, time_step_ratio);
+    return PyFloat_FromDouble(res);
 }
 
-//int main(int argc, char *argv[]) {
-//    int job_array_id = std::atoi(argv[1]);
-//    errorDataOutput(100, 2, job_array_id);
-//    return 0;
+static PyMethodDef SurfaceCodeMethods[] = {
+        {
+                "average_logical_error",
+                _averageLogicalError,
+                METH_VARARGS,
+                ""
+        },
+        {
+                "average_physical_error",
+                _averagePhysicalError,
+                METH_VARARGS,
+                ""
+        },
+        {NULL, NULL, 0, NULL}
+};
+
+
+static struct PyModuleDef SurfaceCodeModule = {
+        PyModuleDef_HEAD_INIT,
+        "SurfaceCode",
+        NULL,
+        -1,
+        SurfaceCodeMethods
+};
+
+
+PyMODINIT_FUNC PyInit_SurfaceCode(void)
+{
+    PyObject *m;
+    m = PyModule_Create(&SurfaceCodeModule);
+    if (m == NULL)
+        return NULL;
+    printf("init SurfaceCode module\n");
+    return m;
+}
+
+
+//int main() {
+//    const char* main_file_name = "../../../ElectronShuttling/Data/ErrorTable/error_table_0.002_0.000_0.005";
+//    double error = averageLogicalError(11, 10000, main_file_name, true, 4);
+//    std::cout<< error << std::endl;
 //}
+

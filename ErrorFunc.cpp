@@ -20,10 +20,10 @@
 //    return prod_table[error0][error1];
 //}
 
-int cnot_err_table[4][4][2] = {{{0,0}, {0,1}, {3,2}, {3,3}},
-                               {{1,1}, {1,0}, {2,3}, {2,2}},
-                               {{2,1}, {2,0}, {1,3}, {1,2}},
-                               {{3,0}, {3,1}, {0,2}, {0,3}}};
+const int cnot_err_table[4][4][2] = {{{0,0}, {0,1}, {3,2}, {3,3}},
+                                     {{1,1}, {1,0}, {2,3}, {2,2}},
+                                     {{2,1}, {2,0}, {1,3}, {1,2}},
+                                     {{3,0}, {3,1}, {0,2}, {0,3}}};
 std::tuple<int, int> pass_through_cnot(const int cbit, const int nbit){
     return  std::make_tuple(cnot_err_table[cbit][nbit][0], cnot_err_table[cbit][nbit][1]);
 }
