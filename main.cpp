@@ -553,35 +553,41 @@ public:
      * Similarly for Z_stb
      * */
 
-    bool hasLogicalError(StabiliserType stb){
-        int n_v_error = 0;
-        int n_h_error = 0;
-        if (stb == X_STB){
-            for (int j = 0; j < primal_data.n_col; j ++) {
-                if (isError(primal_data(0, j), Z_ERROR)) n_v_error++; // check horizontally if any vertical error cuts through
-            }
-            if (not planar) {
-                for (int i = 0; i < dual_data.n_row; i++) {
-                    if (isError(dual_data(i, 0), Z_ERROR)) n_h_error++;
-                }
-            }
+    double hasLogicalError(){
+        bool primal_Z_error = false;
+        bool primal_X_error = false;
+        // Checking Z error of primal lattice (cutting through X_stb):
+        for (int j = 0; j < primal_data.n_col; j ++) {
+            if (isError(primal_data(0, j), Z_ERROR)) primal_Z_error = not primal_Z_error;
         }
-        else if (stb == Z_STB){
-            for (int i = 0; i < primal_data.n_row; i ++) {
-                if (isError(primal_data(i,0), X_ERROR)) n_h_error++;
-            }
-            if (not planar) {
-                for (int j = 0; j < dual_data.n_col; j ++) {
-                    if (isError(dual_data(0,j), X_ERROR)) n_v_error++;
-                }
-            }
+        // Checking X error of primal lattice (cutting through Z_stb):
+        for (int i = 0; i < primal_data.n_row; i ++) {
+            if (isError(primal_data(i, 0), X_ERROR)) primal_X_error = not primal_X_error;
         }
-        return ((n_h_error%2) or (n_v_error%2));
+        auto primal_error = (double)(primal_X_error or primal_Z_error);
+
+        if (not planar) {
+            bool dual_Z_error = false;
+            bool dual_X_error = false;
+            // Checking Z error of primal lattice (cutting through X_stb):
+            for (int i = 0; i < dual_data.n_row; i++) {
+                if (isError(dual_data(i, 0), Z_ERROR)) dual_Z_error = not dual_Z_error;
+            }
+            // Checking X error of primal lattice (cutting through Z_stb):
+            for (int j = 0; j < dual_data.n_col; j ++) {
+                if (isError(dual_data(0, j), X_ERROR)) dual_X_error = not dual_X_error;
+            }
+            auto dual_error = (double)(dual_X_error or dual_Z_error);
+            return (primal_error + dual_error) / 2;
+        }
+        else{
+            return primal_error;
+        }
     }
 
-    bool hasLogicalError(){
-        return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
-    }
+//    double hasLogicalError(){
+//        return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
+//    }
 //    double hasLogicalError(){
 //        return ((double)hasLogicalError(X_STB) + (double)hasLogicalError(Z_STB))/2.0;
 //    }
@@ -626,7 +632,7 @@ double averageLogicalError(int L, int n_runs, const char* main_file_name, int pl
         }
         surface_code.timeStep(true); // the last argument true means it is the last step
         surface_code.fixError();
-        logical_errors_counter += (double) surface_code.hasLogicalError();
+        logical_errors_counter += surface_code.hasLogicalError();
     }
     return logical_errors_counter/(double)n_runs;
 }

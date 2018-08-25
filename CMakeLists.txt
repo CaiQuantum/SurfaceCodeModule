@@ -19,16 +19,16 @@ set(SOURCE_FILES main.cpp ErrorFunc.h HelperFunc.h ErrorFunc.cpp)
 
 get_filename_component(PARENT_DIR ${CMAKE_SOURCE_DIR} DIRECTORY)
 
-set(BLOSSOM_LIBRARY ${PARENT_DIR}/blossom5-v2.05/lib/libblossom.a)
+set(BLOSSOM_LIBRARY blossom5-v2.05/lib/libblossom.a)
 
 
 add_executable(SurfaceCode ${SOURCE_FILES})
 
 get_filename_component(PARENT_DIR ${CMAKE_SOURCE_DIR} DIRECTORY)
-target_include_directories(SurfaceCode PRIVATE ${PARENT_DIR}/blossom5-v2.05)
+target_include_directories(SurfaceCode PRIVATE blossom5-v2.05)
 include_directories(${PYTHON_INCLUDE_DIR})
 
-set(BLOSSOM_LIBRARY ${PARENT_DIR}/blossom5-v2.05/lib/libblossom.a)
+set(BLOSSOM_LIBRARY blossom5-v2.05/lib/libblossom.a)
 target_link_libraries(SurfaceCode ${PYTHON_LIBRARY})
 target_link_libraries(SurfaceCode ${BLOSSOM_LIBRARY})
 
@@ -40,7 +40,7 @@ target_link_libraries(SurfaceCode ${BLOSSOM_LIBRARY})
 #
 #get_filename_component(PARENT_DIR ${CMAKE_SOURCE_DIR} DIRECTORY)
 #
-#set(BLOSSOM_LIBRARY ${PARENT_DIR}/blossom5-v2.05/lib/libblossom.a)
+#set(BLOSSOM_LIBRARY blossom5-v2.05/lib/libblossom.a)
 #
 #
 ##find_package(PythonLibs REQUIRED)
@@ -57,7 +57,7 @@ target_link_libraries(SurfaceCode ${BLOSSOM_LIBRARY})
 #    set_property(TARGET SurfaceCode PROPERTY SUFFIX "")
 #endif()
 #
-#target_include_directories(SurfaceCode PRIVATE ${PARENT_DIR}/blossom5-v2.05)
+#target_include_directories(SurfaceCode PRIVATE blossom5-v2.05)
 #include_directories(${PYTHON_INCLUDE_DIR})
 #
 #target_link_libraries(SurfaceCode ${PYTHON_LIBRARY})
