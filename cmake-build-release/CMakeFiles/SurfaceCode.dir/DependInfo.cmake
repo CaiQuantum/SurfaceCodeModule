@@ -11,7 +11,7 @@ set(CMAKE_CXX_COMPILER_ID "GNU")
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/blossom5-v2.05"
+  "../blossom5-v2.05"
   "/Users/fish/anaconda3/include/python3.6m"
   )
 

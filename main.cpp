@@ -1,3 +1,5 @@
+#include <utility>
+
 #include <Python.h>
 #include <iostream>
 #include <vector>
@@ -295,12 +297,12 @@ public:
 
 class SurfaceCode{
 public:
+    int n_row;
+    int n_col;
     Data primal_data;
     Data dual_data;
     Stabiliser stabiliserX;
     Stabiliser stabiliserZ;
-    int n_row;
-    int n_col;
     int planar;
 
 public:
@@ -312,8 +314,8 @@ public:
             stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar),
             stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar),
             planar(planar){
-        stabiliserX.error_distr = X_error_distr;
-        stabiliserZ.error_distr = Z_error_distr;
+        stabiliserX.error_distr = std::move(X_error_distr);
+        stabiliserZ.error_distr = std::move(Z_error_distr);
         assert((n_row+planar)%2==0);
         assert((n_col+planar)%2==0);
     }
@@ -399,7 +401,12 @@ public:
      */
     void stabiliserUpdate(){
 
-        std::array<std::array<int, 2>, 4> pos_array { {{0,1}, {0,(-1)}, {1, 0}, {-1, 0}} };
+        //First row is order of X_stb update, second row is Z_stb.
+        //About the number of braces see https://stackoverflow.com/questions/43628497/3d-stdarray-in-c
+        std::array<std::array<std::array<int, 2>, 4>, 2> pos_array{{
+                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}},
+                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}}
+                                                                   }};
 
         for (int stb = 0; stb < 2; ++stb)  {
             int tracked_error;
@@ -421,7 +428,7 @@ public:
                     //randomly select one row in the error_table
                     std::array<int, 5> stb_err = error_table[stabiliser->error_distr(rand_gen)];
                     int k = 1;
-                    for (std::array<int, 2> pos: pos_array) {
+                    for (std::array<int, 2> pos: pos_array[stb]) {
                         int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1] );
                         //calculate real parity
                         if (isError(data_qubit, tracked_error)) nP++;
@@ -438,6 +445,69 @@ public:
             reset_boundary();
         }
     }
+
+//    void stabiliserUpdate(){
+//        //First row is order of X_stb update, second row is Z_stb.
+//        //About the number of braces see https://stackoverflow.com/questions/43628497/3d-stdarray-in-c
+//        std::array<std::array<std::array<int, 2>, 4>, 2> pos_array{{
+//                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}},
+//                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}}
+//                                                                   }};
+//        std::array<std::vector<std::vector<int>>, 2> stb_error_array;
+////        for (int stb = 0; stb < 2; ++stb){
+////            stb_error_array[stb].resize()
+////        }
+//
+//
+////        std::vector<std::vector<int>> X_stb_error_array;
+////        std::vector<std::vector<int>> Z_stb_error_array;
+//
+////        X_stb_error_array.resize(n_row);
+////        for(int i = 0; i < n_row; i++){
+////            _code[i].resize(n_col);
+////            for(int j = 0; j < n_col; j++){
+////                _code[i][j] = NO_ERROR;
+////            }
+////        }
+//
+//        for (int stb = 0; stb < 2; ++stb)  {
+//            int tracked_error;
+//            Stabiliser *stabiliser;
+////            std::array<std::array<int, 2>, 4> *pos_array;
+//
+//            if (stb == Z_STB) {
+//                stabiliser = &stabiliserZ;
+//                tracked_error = X_ERROR;
+//            }
+//            else {
+//                stabiliser = &stabiliserX;
+//                tracked_error = Z_ERROR;
+//            }
+//
+//            std::array<int, 2> pos_offset = stabiliser->loc_in_toric;
+//            for (int i = 0; i < (stabiliser->n_row - pos_offset[0] * planar); ++i) {
+//                for (int j = 0; j < (stabiliser->n_col - pos_offset[1] * planar); ++j) {
+//                    int nP = 0;
+//                    //randomly select one row in the error_table
+//                    std::array<int, 5> stb_err = error_table[stabiliser->error_distr(rand_gen)];
+//                    int k = 1;
+//                    for (std::array<int, 2> pos: pos_array[stb]) {
+//                        int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1] );
+//                        //calculate real parity
+//                        if (isError(data_qubit, tracked_error)) nP++;
+//                        //add errors to data qubit
+//                        data_qubit = errorComposite(data_qubit, stb_err[k]);
+//                        k++;
+//                    }
+//                    //add readout errors
+//                    stabiliser->code(i, j) = (nP + stb_err[0]) % 2;
+//                }
+//            }
+//        }
+//        if (planar){
+//            reset_boundary();
+//        }
+//    }
 
 
     // we use error table for asymmetric parity check circuit (in Fowler's paper).
@@ -554,28 +624,29 @@ public:
      * */
 
     double hasLogicalError(){
-        bool primal_Z_error = false;
         bool primal_X_error = false;
-        // Checking Z error of primal lattice (cutting through X_stb):
-        for (int j = 0; j < primal_data.n_col; j ++) {
-            if (isError(primal_data(0, j), Z_ERROR)) primal_Z_error = not primal_Z_error;
-        }
+        bool primal_Z_error = false;
         // Checking X error of primal lattice (cutting through Z_stb):
         for (int i = 0; i < primal_data.n_row; i ++) {
             if (isError(primal_data(i, 0), X_ERROR)) primal_X_error = not primal_X_error;
         }
+        // Checking Z error of primal lattice (cutting through X_stb):
+        for (int j = 0; j < primal_data.n_col; j ++) {
+            if (isError(primal_data(0, j), Z_ERROR)) primal_Z_error = not primal_Z_error;
+        }
         auto primal_error = (double)(primal_X_error or primal_Z_error);
 
         if (not planar) {
-            bool dual_Z_error = false;
             bool dual_X_error = false;
-            // Checking Z error of primal lattice (cutting through X_stb):
-            for (int i = 0; i < dual_data.n_row; i++) {
-                if (isError(dual_data(i, 0), Z_ERROR)) dual_Z_error = not dual_Z_error;
-            }
+
+            bool dual_Z_error = false;
             // Checking X error of primal lattice (cutting through Z_stb):
             for (int j = 0; j < dual_data.n_col; j ++) {
                 if (isError(dual_data(0, j), X_ERROR)) dual_X_error = not dual_X_error;
+            }
+            // Checking Z error of primal lattice (cutting through X_stb):
+            for (int i = 0; i < dual_data.n_row; i++) {
+                if (isError(dual_data(i, 0), Z_ERROR)) dual_Z_error = not dual_Z_error;
             }
             auto dual_error = (double)(dual_X_error or dual_Z_error);
             return (primal_error + dual_error) / 2;
@@ -584,13 +655,6 @@ public:
             return primal_error;
         }
     }
-
-//    double hasLogicalError(){
-//        return hasLogicalError(X_STB) or hasLogicalError(Z_STB);
-//    }
-//    double hasLogicalError(){
-//        return ((double)hasLogicalError(X_STB) + (double)hasLogicalError(Z_STB))/2.0;
-//    }
 };
 
 
@@ -598,7 +662,7 @@ public:
 double averageLogicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
 //    assert(L%2 == 0);
     double logical_errors_counter = 0;
-    std::array<std::array<double,512>, 2> error_prob;
+    std::array<std::array<double,512>, 2> error_prob{};
 
     for (int stb = 0; stb < 2; ++stb) {
         std::ifstream inFile;
@@ -646,7 +710,7 @@ static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
     int planar;
     double time_step_ratio;
     if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
-        return NULL;
+        return nullptr;
     res = averageLogicalError(L, n_runs, main_file_name, planar, time_step_ratio);
     return PyFloat_FromDouble(res);
 }
@@ -655,7 +719,7 @@ static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
 double averagePhysicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
 //    assert(L%2 == 0);
     int physical_errors_counter = 0;
-    std::array<std::array<double,512>, 2> error_prob;
+    std::array<std::array<double,512>, 2> error_prob{};
 
     for (int stb = 0; stb < 2; ++stb) {
         std::ifstream inFile;
@@ -703,7 +767,7 @@ static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
     int planar;
     double time_step_ratio;
     if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
-        return NULL;
+        return nullptr;
     res = averagePhysicalError(L, n_runs, main_file_name, planar, time_step_ratio);
     return PyFloat_FromDouble(res);
 }
@@ -721,14 +785,14 @@ static PyMethodDef SurfaceCodeMethods[] = {
                 METH_VARARGS,
                 ""
         },
-        {NULL, NULL, 0, NULL}
+        {nullptr, nullptr, 0, nullptr}
 };
 
 
 static struct PyModuleDef SurfaceCodeModule = {
         PyModuleDef_HEAD_INIT,
         "SurfaceCode",
-        NULL,
+        nullptr,
         -1,
         SurfaceCodeMethods
 };
@@ -738,8 +802,8 @@ PyMODINIT_FUNC PyInit_SurfaceCode(void)
 {
     PyObject *m;
     m = PyModule_Create(&SurfaceCodeModule);
-    if (m == NULL)
-        return NULL;
+    if (m == nullptr)
+        return nullptr;
     printf("init SurfaceCode module\n");
     return m;
 }

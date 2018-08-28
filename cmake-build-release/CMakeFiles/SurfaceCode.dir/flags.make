@@ -6,5 +6,5 @@ CXX_FLAGS = -O3 -DNDEBUG -isysroot /Applications/Xcode.app/Contents/Developer/Pl
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/blossom5-v2.05 -I/Users/fish/anaconda3/include/python3.6m 
+CXX_INCLUDES = -I/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/blossom5-v2.05 -I/Users/fish/anaconda3/include/python3.6m 
 
