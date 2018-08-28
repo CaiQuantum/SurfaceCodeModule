@@ -429,7 +429,10 @@ public:
                     std::array<int, 5> stb_err = error_table[stabiliser->error_distr(rand_gen)];
                     int k = 1;
                     for (std::array<int, 2> pos: pos_array[stb]) {
-                        int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1] );
+                        int d_i = 2*i+pos_offset[0]+pos[0];
+                        int d_j = 2*j+pos_offset[1]+pos[1];
+                        if (planar and (d_i == -1 or d_j == -1)){ continue;}
+                        int &data_qubit = code(d_i, d_j);
                         //calculate real parity
                         if (isError(data_qubit, tracked_error)) nP++;
                         //add errors to data qubit
@@ -446,68 +449,64 @@ public:
         }
     }
 
-//    void stabiliserUpdate(){
-//        //First row is order of X_stb update, second row is Z_stb.
-//        //About the number of braces see https://stackoverflow.com/questions/43628497/3d-stdarray-in-c
-//        std::array<std::array<std::array<int, 2>, 4>, 2> pos_array{{
-//                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}},
-//                                                                           {{{0, 1}, {0, (-1)}, {1, 0}, {-1, 0}}}
-//                                                                   }};
-//        std::array<std::vector<std::vector<int>>, 2> stb_error_array;
-////        for (int stb = 0; stb < 2; ++stb){
-////            stb_error_array[stb].resize()
-////        }
-//
-//
-////        std::vector<std::vector<int>> X_stb_error_array;
-////        std::vector<std::vector<int>> Z_stb_error_array;
-//
-////        X_stb_error_array.resize(n_row);
-////        for(int i = 0; i < n_row; i++){
-////            _code[i].resize(n_col);
-////            for(int j = 0; j < n_col; j++){
-////                _code[i][j] = NO_ERROR;
-////            }
-////        }
-//
-//        for (int stb = 0; stb < 2; ++stb)  {
-//            int tracked_error;
-//            Stabiliser *stabiliser;
-////            std::array<std::array<int, 2>, 4> *pos_array;
-//
-//            if (stb == Z_STB) {
-//                stabiliser = &stabiliserZ;
-//                tracked_error = X_ERROR;
-//            }
-//            else {
-//                stabiliser = &stabiliserX;
-//                tracked_error = Z_ERROR;
-//            }
-//
-//            std::array<int, 2> pos_offset = stabiliser->loc_in_toric;
-//            for (int i = 0; i < (stabiliser->n_row - pos_offset[0] * planar); ++i) {
-//                for (int j = 0; j < (stabiliser->n_col - pos_offset[1] * planar); ++j) {
-//                    int nP = 0;
-//                    //randomly select one row in the error_table
-//                    std::array<int, 5> stb_err = error_table[stabiliser->error_distr(rand_gen)];
-//                    int k = 1;
-//                    for (std::array<int, 2> pos: pos_array[stb]) {
-//                        int &data_qubit = code( 2*i+pos_offset[0]+pos[0], 2*j+pos_offset[1]+pos[1] );
-//                        //calculate real parity
-//                        if (isError(data_qubit, tracked_error)) nP++;
-//                        //add errors to data qubit
-//                        data_qubit = errorComposite(data_qubit, stb_err[k]);
-//                        k++;
-//                    }
-//                    //add readout errors
-//                    stabiliser->code(i, j) = (nP + stb_err[0]) % 2;
-//                }
-//            }
-//        }
-//        if (planar){
-//            reset_boundary();
-//        }
-//    }
+    void syncStabiliserUpdate(){
+        //First row is order of X_stb update, second row is Z_stb.
+        //About the number of braces see https://stackoverflow.com/questions/43628497/3d-stdarray-in-c
+        std::array<std::array<std::array<int, 2>, 4>, 2> pos_array{{
+                                                                           {{{0, -1}, {-1, 0}, {1, 0}, {0, 1}}},
+                                                                           {{{0, -1}, {-1, 0}, {1, 0}, {0, 1}}}
+                                                                   }};
+        std::array<std::vector<std::vector<int>>, 2> stb_error_array;
+        std::array<Stabiliser*, 2>stabiliser {{&stabiliserX, &stabiliserZ}};
+        std::array<DataError, 2>tracked_error{Z_ERROR, X_ERROR};
+
+        for (int stb = 0; stb < 2; ++stb) {
+            //Initialisation
+            std::array<int, 2> pos_offset = stabiliser[stb]->loc_in_toric;
+            stb_error_array[stb].resize(stabiliser[stb]->n_row - pos_offset[0] * planar);
+            for (int i = 0; i < (stabiliser[stb]->n_row - pos_offset[0] * planar); ++i) {
+                stb_error_array[stb][i].resize(stabiliser[stb]->n_col - pos_offset[1] * planar);
+                for (int j = 0; j < (stabiliser[stb]->n_col - pos_offset[1] * planar); ++j) {
+                    stabiliser[stb]->code(i, j) = 0;
+                    //randomly select one row in the error_table
+                    stb_error_array[stb][i][j] = stabiliser[stb]->error_distr(rand_gen);
+                }
+            }
+        }
+
+        for (int qb = 0; qb < 4; ++qb) {
+            for (int stb = 0; stb < 2; ++stb) {
+                std::array<int, 2> pos_offset = stabiliser[stb]->loc_in_toric;
+                int starting_i = 0;
+                int starting_j = 0;
+                if (planar and pos_offset[0]==0 and pos_array[stb][qb][0] == -1){starting_i = 1;}
+                if (planar and pos_offset[1]==0 and pos_array[stb][qb][1] == -1){starting_j = 1;}
+                for (int i = starting_i; i < (stabiliser[stb]->n_row - pos_offset[0] * planar); ++i) {
+                    for (int j = starting_j; j < (stabiliser[stb]->n_col - pos_offset[1] * planar); ++j) {
+                        int &data_qubit = code(2 * i + pos_offset[0] + pos_array[stb][qb][0],
+                                               2 * j + pos_offset[1] + pos_array[stb][qb][1]);
+                        //calculate real parity
+                        if (isError(data_qubit, tracked_error[stb])) stabiliser[stb]->code(i, j)++;
+                        //add errors to data qubit
+                        data_qubit = errorComposite(data_qubit, error_table[stb_error_array[stb][i][j]][qb + 1]);
+                    }
+                }
+            }
+        }
+
+        for (int stb = 0; stb < 2; ++stb)  {
+            //Initialisation
+            std::array<int, 2> pos_offset = stabiliser[stb]->loc_in_toric;
+            for (int i = 0; i < (stabiliser[stb]->n_row - pos_offset[0] * planar); ++i) {
+                for (int j = 0; j < (stabiliser[stb]->n_col - pos_offset[1] * planar); ++j) {
+                    stabiliser[stb]->code(i, j) = (stabiliser[stb]->code(i, j) + error_table[stb_error_array[stb][i][j]][0]) % 2;
+                }
+            }
+        }
+        if (planar){
+            reset_boundary();
+        }
+    }
 
 
     // we use error table for asymmetric parity check circuit (in Fowler's paper).
