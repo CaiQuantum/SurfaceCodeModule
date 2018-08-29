@@ -78,6 +78,11 @@ enum StabiliserType{
     Z_STB
 };
 
+enum LatticeType{
+    PRIMAL,
+    DUAL
+};
+
 class Data: public Code{
 public:
     std::array<std::vector<std::array<int,2>>,2> error_locations;
@@ -175,7 +180,8 @@ public:
         }
     }
 
-    int minLinePath(const int start, const int end, const int n_L){
+    int minPeriodicLinePath(const int start, const int end, const int n_L){
+        //Signed distance between end point and start point along a periodic line
         int d_1 = end - start;
         int sign_d1 = (end > start) - (start > end);
         int d_2 = d_1 - sign_d1 * n_L;
@@ -183,23 +189,38 @@ public:
         else return d_2;
     }
 
-    inline std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end){
-        return {minLinePath(start[0], end[0], n_row), minLinePath(start[1], end[1], n_col)};
+    std::array<int, 2> minSpatialPath(std::array<int,3> start, std::array<int,3> end, int planar){
+        if (planar){
+            if (loc_in_toric[0] == 1){
+                return {minPeriodicLinePath(start[0], end[0], n_row), end[1] - start[1]};
+            }
+            else{
+                return {end[0] - start[0], minPeriodicLinePath(start[1], end[1], n_col)};
+            }
+        }
+        else {
+            return {minPeriodicLinePath(start[0], end[0], n_row), minPeriodicLinePath(start[1], end[1], n_col)};
+        }
     }
 
-//    inline int spatialDistance(std::array<int,3> loc1, std::array<int,3> loc2){
-//        int d0 = abs(loc1[0] - loc2[0]);
-//        int d1 = abs(loc1[1] - loc2[1]);
-//        int d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1);
-//
-//        return d;
-//    }
-
-    inline int distance(std::array<int,3> loc1, std::array<int,3> loc2){
+    inline int toricDistance(std::array<int,3> loc1, std::array<int,3> loc2){
         // we create d here to reduce the need to access element of loc, hence increasing ths speed
         int d0 = abs(loc1[0] - loc2[0]);
         int d1 = abs(loc1[1] - loc2[1]);
         int d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+        return d;
+    }
+
+    inline int planarDistance(std::array<int,3> loc1, std::array<int,3> loc2){
+        int d0 = abs(loc1[0] - loc2[0]);
+        int d1 = abs(loc1[1] - loc2[1]);
+        int d;
+        if (loc_in_toric[0] == 1){
+            d = std::min(d0, n_row - d0) + d1 + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+        }
+        else {
+            d = d0 + std::min(d1, n_col - d1) + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+        }
         return d;
     }
 
@@ -212,10 +233,8 @@ public:
         else{
             boundary_loc[1] = n_col - 1;
         }
-
         return boundary_loc;
     }
-
 
     inline int distanceToBoundary(std::array<int,3> loc){
         if (loc_in_toric[0] == 1){
@@ -228,8 +247,6 @@ public:
             int d = loc[1];
             return std::min(d + 1, n_col - 1 - d);
         }
-
-//        return spatialDistance(loc, getBoundaryLoc(loc));
     }
 
     PerfectMatching* getErrorMatching(){
@@ -245,34 +262,29 @@ public:
                 flip_locs.push_back(getBoundaryLoc(flip_locs[i]));
                 edges.push_back({i, (i + n_error), distanceToBoundary(flip_locs[i])});
             }
-
             // Adding edges between mirror errors
             for (int i = n_error; i < 2 * n_error; ++i) {
                 for (int j = n_error; j < i; ++j) {
                     edges.push_back({i, j , 0});
                 }
             }
-
             for (int i = 0; i < n_error; ++i) {
                 for (int j = 0; j < i ; ++j) {
                     //add spatial distance and time distance together as cost.
-                    int d_link = distance(flip_locs[i], flip_locs[j]);
-
+                    int d_link = planarDistance(flip_locs[i], flip_locs[j]);
                     int d_bound = edges[i][2] + edges[j][2];
-
                     if (d_link < d_bound){
                         edges.push_back({i, j , d_link});
                     }
                 }
             }
-
         }
         else{
             edges.reserve(n_error* (n_error-1)/2);
             for (int i = 0; i < n_error; ++i) {
                 for (int j = 0; j < i ; ++j) {
                     //add spatial distance and time distance together as cost.
-                    int d = distance(flip_locs[i], flip_locs[j]);
+                    int d = toricDistance(flip_locs[i], flip_locs[j]);
                     edges.push_back({i, j ,d});
                 }
             }
@@ -559,19 +571,13 @@ public:
         }
         std::array<int, 2> offset = stabiliser->loc_in_toric;
         PerfectMatching* pm = stabiliser->getErrorMatching();
-//        int n_error = stabiliser->n_error;
-//        std::array <int, 2> start, loc, min_path;
-
 //        std::binomial_distribution<> direction(1, 0.5);
-
-
-//        int  ver_sign, hor_sign, ver_steps, hor_steps;
         std::set<int> error_corrected; //std::array are implicitly copied.
         for (int error = 0; error < stabiliser->n_error; ++error){
             if (error_corrected.find(error) == error_corrected.end()) { // equivalent to if error is not in error_corrected
                 int paired_error = pm->GetMatch(error);
                 std::array <int, 2> min_path = stabiliser->minSpatialPath(stabiliser->flip_locs[error],
-                                                                          stabiliser->flip_locs[paired_error]);
+                                                                          stabiliser->flip_locs[paired_error], planar);
                 int ver_sign = getSign(min_path[0]); //+1 if end[0]>start[0], -1 if otherwise.
                 int hor_sign = getSign(min_path[1]); //+1 if end[0]>start[0], -1 if otherwise.
 
@@ -622,32 +628,46 @@ public:
      * Similarly for Z_stb
      * */
 
+    bool hasLogicalError(DataError error_type, LatticeType lattice_type){
+        //primal lattice
+        bool logical_error = false;
+        if (lattice_type == PRIMAL){
+            if (error_type == X_ERROR){
+                // Checking X error of primal lattice (cutting through Z_stb):
+                for (int i = 0; i < primal_data.n_row; i ++) {
+                    if (isError(primal_data(i, 0), X_ERROR)) logical_error = not logical_error;
+                }
+            }
+            else{
+                // Checking Z error of primal lattice (cutting through X_stb):
+                for (int j = 0; j < primal_data.n_col; j ++) {
+                    if (isError(primal_data(0, j), Z_ERROR)) logical_error = not logical_error;
+                }
+            }
+        }
+        //Dual lattice
+        else{
+            if (error_type == X_ERROR){
+                // Checking X error of primal lattice (cutting through Z_stb):
+                for (int j = 0; j < dual_data.n_col; j ++) {
+                    if (isError(dual_data(0, j), X_ERROR)) logical_error = not logical_error;
+                }
+            }
+            else{
+                // Checking Z error of primal lattice (cutting through X_stb):
+                for (int i = 0; i < dual_data.n_row; i++) {
+                    if (isError(dual_data(i, 0), Z_ERROR)) logical_error = not logical_error;
+                }
+            }
+        }
+        return logical_error;
+    }
+
     double hasLogicalError(){
-        bool primal_X_error = false;
-        bool primal_Z_error = false;
-        // Checking X error of primal lattice (cutting through Z_stb):
-        for (int i = 0; i < primal_data.n_row; i ++) {
-            if (isError(primal_data(i, 0), X_ERROR)) primal_X_error = not primal_X_error;
-        }
-        // Checking Z error of primal lattice (cutting through X_stb):
-        for (int j = 0; j < primal_data.n_col; j ++) {
-            if (isError(primal_data(0, j), Z_ERROR)) primal_Z_error = not primal_Z_error;
-        }
-        auto primal_error = (double)(primal_X_error or primal_Z_error);
+        auto primal_error = (double)(hasLogicalError(X_ERROR, PRIMAL) or hasLogicalError(Z_ERROR, PRIMAL));
 
         if (not planar) {
-            bool dual_X_error = false;
-
-            bool dual_Z_error = false;
-            // Checking X error of primal lattice (cutting through Z_stb):
-            for (int j = 0; j < dual_data.n_col; j ++) {
-                if (isError(dual_data(0, j), X_ERROR)) dual_X_error = not dual_X_error;
-            }
-            // Checking Z error of primal lattice (cutting through X_stb):
-            for (int i = 0; i < dual_data.n_row; i++) {
-                if (isError(dual_data(i, 0), Z_ERROR)) dual_Z_error = not dual_Z_error;
-            }
-            auto dual_error = (double)(dual_X_error or dual_Z_error);
+            auto dual_error = (double)(hasLogicalError(X_ERROR, DUAL) or hasLogicalError(Z_ERROR, DUAL));
             return (primal_error + dual_error) / 2;
         }
         else{
@@ -656,36 +676,39 @@ public:
     }
 };
 
+std::discrete_distribution<> readErrorTable(const char* error_table_filename){
+    std::array<double,512> error_prob{};
+    std::ifstream inFile;
+//    char error_table_filename [100];
+//    if (stb == X_STB) {
+//        sprintf(error_table_filename, "%s_X.txt", main_file_name);
+//    }
+//    else{
+//        sprintf(error_table_filename, "%s_Z.txt", main_file_name);
+//    }
+    inFile.open(error_table_filename);
+    if (!inFile) {
+        char error_message[150];
+        sprintf(error_message, "Could not open %s", error_table_filename);
+        throw std::runtime_error(error_message);
+    }
+    for (int i = 0; i < 512; i++) {
+        inFile >> error_prob[i];
+        inFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    inFile.close();
+    std::discrete_distribution<> error_distr(error_prob.begin(), error_prob.end());
+    return error_distr;
+}
+
 
 //In this function we assume the number of time steps is the same as length L.
-double averageLogicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
+double averageLogicalError(int L, int n_runs, const char* X_error_table_filename, const char* Z_error_table_filename,
+        int planar, double time_step_ratio = 0.5){
 //    assert(L%2 == 0);
     double logical_errors_counter = 0;
-    std::array<std::array<double,512>, 2> error_prob{};
-
-    for (int stb = 0; stb < 2; ++stb) {
-        std::ifstream inFile;
-        char error_table_filename [100];
-        if (stb == X_STB) {
-            sprintf(error_table_filename, "%s_X.txt", main_file_name);
-        }
-        else{
-            sprintf(error_table_filename, "%s_Z.txt", main_file_name);
-        }
-        inFile.open(error_table_filename);
-        if (!inFile) {
-            char error_message[150];
-            sprintf(error_message, "Could not open %s", error_table_filename);
-            throw std::runtime_error(error_message);
-        }
-        for (int i = 0; i < 512; i++) {
-            inFile >> error_prob[stb][i];
-            inFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        }
-        inFile.close();
-    }
-    std::discrete_distribution<> X_error_distr(error_prob[0].begin(), error_prob[0].end());
-    std::discrete_distribution<> Z_error_distr(error_prob[1].begin(), error_prob[1].end());
+    std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
+    std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
         SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
@@ -704,45 +727,73 @@ double averageLogicalError(int L, int n_runs, const char* main_file_name, int pl
 static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
     int L;
     int n_runs;
-    const char* main_file_name;
+    const char* X_error_table_filename;
+    const char* Z_error_table_filename;
     double res;
     int planar;
     double time_step_ratio;
-    if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
+    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename,
+                          &planar, &time_step_ratio))
         return nullptr;
-    res = averageLogicalError(L, n_runs, main_file_name, planar, time_step_ratio);
+    res = averageLogicalError(L, n_runs, X_error_table_filename, Z_error_table_filename, planar, time_step_ratio);
     return PyFloat_FromDouble(res);
 }
 
+std::array<double, 5> averageLogicalErrorArray(int L, int n_runs, const char* X_error_table_filename,
+                                               const char* Z_error_table_filename, int planar,
+                                               double time_step_ratio = 0.5){
+    std::array<double, 5> logical_errors_counter {{0, 0, 0, 0, 0}};
+    std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
+    std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
-double averagePhysicalError(int L, int n_runs, const char* main_file_name, int planar, double time_step_ratio = 0.5){
+    for (int i = 0; i < n_runs; ++i) {
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+//        surface_code.printCode();
+        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+            surface_code.timeStep(false);
+        }
+        surface_code.timeStep(true); // the last argument true means it is the last step
+        surface_code.fixError();
+        logical_errors_counter[0] += surface_code.hasLogicalError();
+        logical_errors_counter[1] += surface_code.hasLogicalError(X_ERROR, PRIMAL);
+        logical_errors_counter[2] += surface_code.hasLogicalError(Z_ERROR, PRIMAL);
+        if (not planar) {
+            logical_errors_counter[3] += surface_code.hasLogicalError(X_ERROR, DUAL);
+            logical_errors_counter[4] += surface_code.hasLogicalError(Z_ERROR, DUAL);
+        }
+    }
+    for (int i = 0; i < 5; i++){
+        logical_errors_counter[i] = logical_errors_counter[i] / (double) n_runs;
+    }
+    return logical_errors_counter;
+}
+
+static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
+    int L;
+    int n_runs;
+    const char* X_error_table_filename;
+    const char* Z_error_table_filename;
+    int planar;
+    double time_step_ratio;
+    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename, &planar,
+                          &time_step_ratio))
+        return nullptr;
+    std::array<double, 5> res = averageLogicalErrorArray(L, n_runs, X_error_table_filename, Z_error_table_filename,
+                                                         planar, time_step_ratio);
+    PyObject* pArgs = PyTuple_New(5);
+    for (int i=0; i<5; ++i){
+        PyTuple_SetItem(pArgs, i, Py_BuildValue("d", res[i]));
+    }
+    return pArgs;
+}
+
+
+double averagePhysicalError(int L, int n_runs, const char* X_error_table_filename,
+                            const char* Z_error_table_filename, int planar, double time_step_ratio = 0.5){
 //    assert(L%2 == 0);
     int physical_errors_counter = 0;
-    std::array<std::array<double,512>, 2> error_prob{};
-
-    for (int stb = 0; stb < 2; ++stb) {
-        std::ifstream inFile;
-        char error_table_filename [100];
-        if (stb == X_STB) {
-            sprintf(error_table_filename, "%s_X.txt", main_file_name);
-        }
-        else{
-            sprintf(error_table_filename, "%s_Z.txt", main_file_name);
-        }
-        inFile.open(error_table_filename);
-        if (!inFile) {
-            char error_message[150];
-            sprintf(error_message, "Could not open %s", error_table_filename);
-            throw std::runtime_error(error_message);
-        }
-        for (int i = 0; i < 512; i++) {
-            inFile >> error_prob[stb][i];
-            inFile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        }
-        inFile.close();
-    }
-    std::discrete_distribution<> X_error_distr(error_prob[0].begin(), error_prob[0].end());
-    std::discrete_distribution<> Z_error_distr(error_prob[1].begin(), error_prob[1].end());
+    std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
+    std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
         SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
@@ -761,13 +812,16 @@ double averagePhysicalError(int L, int n_runs, const char* main_file_name, int p
 static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
     int L;
     int n_runs;
-    const char* main_file_name;
+    const char* X_error_table_filename;
+    const char* Z_error_table_filename;
     double res;
     int planar;
     double time_step_ratio;
-    if (!PyArg_ParseTuple(args, "iisid", &L, &n_runs, &main_file_name, &planar, &time_step_ratio))
+    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename,
+                          &Z_error_table_filename, &planar, &time_step_ratio))
         return nullptr;
-    res = averagePhysicalError(L, n_runs, main_file_name, planar, time_step_ratio);
+    res = averagePhysicalError(L, n_runs, X_error_table_filename,
+                               Z_error_table_filename, planar, time_step_ratio);
     return PyFloat_FromDouble(res);
 }
 
@@ -775,6 +829,12 @@ static PyMethodDef SurfaceCodeMethods[] = {
         {
                 "average_logical_error",
                 _averageLogicalError,
+                METH_VARARGS,
+                ""
+        },
+        {
+                "average_logical_error_array",
+                _averageLogicalErrorArray,
                 METH_VARARGS,
                 ""
         },

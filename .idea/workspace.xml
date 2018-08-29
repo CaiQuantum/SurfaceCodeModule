@@ -12,8 +12,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7378b471-4e49-4c98-ba8f-0b2c46e16c39" name="Default" comment="Allow X_stb and Z_stb to have different order of updating for the four qubits within the same stb generators">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="7378b471-4e49-4c98-ba8f-0b2c46e16c39" name="Default" comment="Add syncStbUpdate. And add conditions such that the data qubit at the boundary in the planar code can be always viewed as perfect, (while in the original version the error we introduce to the boundary qubits will actually affect our stb check results).">
       <change beforePath="$PROJECT_DIR$/build/lib.macosx-10.7-x86_64-3.6/SurfaceCode.cpython-36m-darwin.so" beforeDir="false" afterPath="$PROJECT_DIR$/build/lib.macosx-10.7-x86_64-3.6/SurfaceCode.cpython-36m-darwin.so" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/temp.macosx-10.7-x86_64-3.6/main.o" beforeDir="false" afterPath="$PROJECT_DIR$/build/temp.macosx-10.7-x86_64-3.6/main.o" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/main.cpp" afterDir="false" />
@@ -43,14 +42,14 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="cpp" value="1601" />
-          <entry key="txt" value="224" />
+          <entry key="cpp" value="2771" />
+          <entry key="txt" value="536" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="ObjectiveC" value="1601" />
-          <entry key="PLAIN_TEXT" value="224" />
+          <entry key="ObjectiveC" value="2771" />
+          <entry key="PLAIN_TEXT" value="536" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
@@ -80,8 +79,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1181">
-              <caret line="292" lean-forward="true" selection-start-line="292" selection-end-line="292" />
+            <state relative-caret-position="-1181">
+              <caret line="762" column="9" lean-forward="true" selection-start-line="762" selection-start-column="9" selection-end-line="762" selection-end-column="9" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -386,7 +385,7 @@
       <workItem from="1535110803925" duration="4561000" />
       <workItem from="1535144200474" duration="34000" />
       <workItem from="1535237502952" duration="8278000" />
-      <workItem from="1535389049034" duration="14899000" />
+      <workItem from="1535389049034" duration="25809000" />
     </task>
     <task id="LOCAL-00001" summary="Basic Skeleton">
       <created>1509611430439</created>
@@ -612,11 +611,18 @@
       <option name="project" value="LOCAL" />
       <updated>1535447963685</updated>
     </task>
-    <option name="localTasksCounter" value="33" />
+    <task id="LOCAL-00033" summary="Add syncStbUpdate. And add conditions such that the data qubit at the boundary in the planar code can be always viewed as perfect, (while in the original version the error we introduce to the boundary qubits will actually affect our stb check results).">
+      <created>1535469565423</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1535469565423</updated>
+    </task>
+    <option name="localTasksCounter" value="34" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="421746000" />
+    <option name="totallyTimeSpent" value="432656000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="22" width="1440" height="878" extended-state="6" />
@@ -654,7 +660,6 @@
   <component name="VcsManagerConfiguration">
     <option name="CHECK_CODE_CLEANUP_BEFORE_PROJECT_COMMIT" value="true" />
     <option name="CHECK_NEW_TODO" value="false" />
-    <MESSAGE value="Add neighbour function for the data" />
     <MESSAGE value="Change all ErrorType to int" />
     <MESSAGE value="Delete Neighbour function. Substitute that with the full surface code grid." />
     <MESSAGE value="Add ErrorComposition Function. Add .code access for general code, add deterministic fixError." />
@@ -679,7 +684,8 @@
     <MESSAGE value="Speed up codes by moveing out error table loading. Delete sym stabliser update, but have not figure out how to include Hadamard all qubits into the error table yet" />
     <MESSAGE value="change from toric code to surface code, split the data qubit into primal and dual." />
     <MESSAGE value="Allow X_stb and Z_stb to have different order of updating for the four qubits within the same stb generators" />
-    <option name="LAST_COMMIT_MESSAGE" value="Allow X_stb and Z_stb to have different order of updating for the four qubits within the same stb generators" />
+    <MESSAGE value="Add syncStbUpdate. And add conditions such that the data qubit at the boundary in the planar code can be always viewed as perfect, (while in the original version the error we introduce to the boundary qubits will actually affect our stb check results)." />
+    <option name="LAST_COMMIT_MESSAGE" value="Add syncStbUpdate. And add conditions such that the data qubit at the boundary in the planar code can be always viewed as perfect, (while in the original version the error we introduce to the boundary qubits will actually affect our stb check results)." />
   </component>
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/Test.cpp" />
@@ -765,8 +771,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/main.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1181">
-          <caret line="292" lean-forward="true" selection-start-line="292" selection-end-line="292" />
+        <state relative-caret-position="-1181">
+          <caret line="762" column="9" lean-forward="true" selection-start-line="762" selection-start-column="9" selection-end-line="762" selection-end-column="9" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
