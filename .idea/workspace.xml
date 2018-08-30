@@ -30,7 +30,7 @@
     <session id="-1053530964">
       <usages-collector id="statistics.lifecycle.project">
         <counts>
-          <entry key="project.closed" value="2" />
+          <entry key="project.closed" value="3" />
           <entry key="project.open.time.15" value="1" />
           <entry key="project.open.time.4" value="1" />
           <entry key="project.open.time.5" value="1" />
@@ -77,8 +77,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="79">
-              <caret line="681" column="7" selection-start-line="681" selection-start-column="7" selection-end-line="681" selection-end-column="7" />
+            <state relative-caret-position="-2291">
+              <caret line="681" column="38" lean-forward="true" selection-start-line="681" selection-start-column="38" selection-end-line="681" selection-end-column="38" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -383,7 +383,7 @@
       <workItem from="1535110803925" duration="4561000" />
       <workItem from="1535144200474" duration="34000" />
       <workItem from="1535237502952" duration="8278000" />
-      <workItem from="1535389049034" duration="26049000" />
+      <workItem from="1535389049034" duration="26319000" />
     </task>
     <task id="LOCAL-00001" summary="Basic Skeleton">
       <created>1509611430439</created>
@@ -620,7 +620,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="432896000" />
+    <option name="totallyTimeSpent" value="433166000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="22" width="1440" height="878" extended-state="6" />
@@ -769,8 +769,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/main.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="79">
-          <caret line="681" column="7" selection-start-line="681" selection-start-column="7" selection-end-line="681" selection-end-column="7" />
+        <state relative-caret-position="-2291">
+          <caret line="681" column="38" lean-forward="true" selection-start-line="681" selection-start-column="38" selection-end-line="681" selection-end-column="38" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
