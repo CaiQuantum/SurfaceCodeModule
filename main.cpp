@@ -679,13 +679,6 @@ public:
 std::discrete_distribution<> readErrorTable(const char* error_table_filename){
     std::array<double,512> error_prob{};
     std::ifstream inFile;
-//    char error_table_filename [100];
-//    if (stb == X_STB) {
-//        sprintf(error_table_filename, "%s_X.txt", main_file_name);
-//    }
-//    else{
-//        sprintf(error_table_filename, "%s_Z.txt", main_file_name);
-//    }
     inFile.open(error_table_filename);
     if (!inFile) {
         char error_message[150];
@@ -780,11 +773,11 @@ static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
         return nullptr;
     std::array<double, 5> res = averageLogicalErrorArray(L, n_runs, X_error_table_filename, Z_error_table_filename,
                                                          planar, time_step_ratio);
-    PyObject* pArgs = PyTuple_New(5);
+    PyObject* res_pytuple = PyTuple_New(5);
     for (int i=0; i<5; ++i){
-        PyTuple_SetItem(pArgs, i, Py_BuildValue("d", res[i]));
+        PyTuple_SetItem(res_pytuple, i, Py_BuildValue("d", res[i]));
     }
-    return pArgs;
+    return res_pytuple;
 }
 
 

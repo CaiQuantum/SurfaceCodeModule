@@ -13,8 +13,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7378b471-4e49-4c98-ba8f-0b2c46e16c39" name="Default" comment="Add syncStbUpdate. And add conditions such that the data qubit at the boundary in the planar code can be always viewed as perfect, (while in the original version the error we introduce to the boundary qubits will actually affect our stb check results).">
-      <change beforePath="$PROJECT_DIR$/build/lib.macosx-10.7-x86_64-3.6/SurfaceCode.cpython-36m-darwin.so" beforeDir="false" afterPath="$PROJECT_DIR$/build/lib.macosx-10.7-x86_64-3.6/SurfaceCode.cpython-36m-darwin.so" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/temp.macosx-10.7-x86_64-3.6/main.o" beforeDir="false" afterPath="$PROJECT_DIR$/build/temp.macosx-10.7-x86_64-3.6/main.o" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/main.cpp" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/cmake-build-debug/" />
@@ -42,13 +40,13 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="cpp" value="2771" />
+          <entry key="cpp" value="2786" />
           <entry key="txt" value="536" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="ObjectiveC" value="2771" />
+          <entry key="ObjectiveC" value="2786" />
           <entry key="PLAIN_TEXT" value="536" />
         </counts>
       </usages-collector>
@@ -79,8 +77,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-1181">
-              <caret line="762" column="9" lean-forward="true" selection-start-line="762" selection-start-column="9" selection-end-line="762" selection-end-column="9" />
+            <state relative-caret-position="79">
+              <caret line="681" column="7" selection-start-line="681" selection-start-column="7" selection-end-line="681" selection-end-column="7" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -385,7 +383,7 @@
       <workItem from="1535110803925" duration="4561000" />
       <workItem from="1535144200474" duration="34000" />
       <workItem from="1535237502952" duration="8278000" />
-      <workItem from="1535389049034" duration="25809000" />
+      <workItem from="1535389049034" duration="26049000" />
     </task>
     <task id="LOCAL-00001" summary="Basic Skeleton">
       <created>1509611430439</created>
@@ -622,7 +620,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="432656000" />
+    <option name="totallyTimeSpent" value="432896000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="22" width="1440" height="878" extended-state="6" />
@@ -771,8 +769,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/main.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1181">
-          <caret line="762" column="9" lean-forward="true" selection-start-line="762" selection-start-column="9" selection-end-line="762" selection-end-column="9" />
+        <state relative-caret-position="79">
+          <caret line="681" column="7" selection-start-line="681" selection-start-column="7" selection-end-line="681" selection-end-column="7" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
