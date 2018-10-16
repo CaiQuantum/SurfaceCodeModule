@@ -35,7 +35,7 @@
 
 std::random_device rd;
 std::mt19937 rand_gen(rd());
-const int TD_DISTANCE_RATIO = 1;
+//const double TD_DISTANCE_RATIO = 1;
 
 class Code{
 public:
@@ -146,12 +146,15 @@ public:
     std::discrete_distribution<> error_distr;
     std::array<int,2> loc_in_toric;
     int planar;
+    double td_weight_ratio;
     int t = 0;
     int n_error=0; //number of errors in stb excluding boundary stb errors
 
 public:
-    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type, std::array<int,2> loc_in_toric, int planar=0):
-            Code(n_row, n_col), stabiliser_type(stabiliser_type), loc_in_toric(loc_in_toric), planar(planar){
+    Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type, std::array<int,2> loc_in_toric, int planar=0,
+               double td_weight_ratio=1):
+            Code(n_row, n_col), stabiliser_type(stabiliser_type), loc_in_toric(loc_in_toric), planar(planar),
+            td_weight_ratio(td_weight_ratio){
         std::array<double,512> error_prob{};
         error_prob[0] = 1;
         std::discrete_distribution<> error_distr(error_prob.begin(), error_prob.end());
@@ -203,23 +206,23 @@ public:
         }
     }
 
-    inline int toricDistance(std::array<int,3> loc1, std::array<int,3> loc2){
+    inline double toricDistance(std::array<int,3> loc1, std::array<int,3> loc2){
         // we create d here to reduce the need to access element of loc, hence increasing ths speed
         int d0 = abs(loc1[0] - loc2[0]);
         int d1 = abs(loc1[1] - loc2[1]);
-        int d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+        double d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + td_weight_ratio * abs(loc1[2] - loc2[2]);
         return d;
     }
 
-    inline int planarDistance(std::array<int,3> loc1, std::array<int,3> loc2){
+    inline double planarDistance(std::array<int,3> loc1, std::array<int,3> loc2){
         int d0 = abs(loc1[0] - loc2[0]);
         int d1 = abs(loc1[1] - loc2[1]);
-        int d;
+        double d;
         if (loc_in_toric[0] == 1){
-            d = std::min(d0, n_row - d0) + d1 + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+            d = std::min(d0, n_row - d0) + d1 + td_weight_ratio * abs(loc1[2] - loc2[2]);
         }
         else {
-            d = d0 + std::min(d1, n_col - d1) + TD_DISTANCE_RATIO * abs(loc1[2] - loc2[2]);
+            d = d0 + std::min(d1, n_col - d1) + td_weight_ratio * abs(loc1[2] - loc2[2]);
         }
         return d;
     }
@@ -253,28 +256,28 @@ public:
 //        assert (flip_locs.size() != 0);
         n_error = flip_locs.size();
 
-        std::vector<std::array<int,3>> edges;
+        std::vector<std::array<double,3>> edges;
         if (planar){
             // reserving space for all the edges related to mirror errors.
             edges.reserve(n_error + n_error* (n_error-1)/2);
             // Adding bouandary mirror errors
             for (int i = 0; i < n_error; ++i) {
                 flip_locs.push_back(getBoundaryLoc(flip_locs[i]));
-                edges.push_back({i, (i + n_error), distanceToBoundary(flip_locs[i])});
+                edges.push_back({(double) i, (double) (i + n_error), (double) distanceToBoundary(flip_locs[i])});
             }
             // Adding edges between mirror errors
             for (int i = n_error; i < 2 * n_error; ++i) {
                 for (int j = n_error; j < i; ++j) {
-                    edges.push_back({i, j , 0});
+                    edges.push_back({(double)i, (double)j , 0});
                 }
             }
             for (int i = 0; i < n_error; ++i) {
                 for (int j = 0; j < i ; ++j) {
                     //add spatial distance and time distance together as cost.
-                    int d_link = planarDistance(flip_locs[i], flip_locs[j]);
-                    int d_bound = edges[i][2] + edges[j][2];
+                    double d_link = planarDistance(flip_locs[i], flip_locs[j]);
+                    double d_bound = edges[i][2] + edges[j][2];
                     if (d_link < d_bound){
-                        edges.push_back({i, j , d_link});
+                        edges.push_back({(double)i, (double)j , d_link});
                     }
                 }
             }
@@ -284,8 +287,8 @@ public:
             for (int i = 0; i < n_error; ++i) {
                 for (int j = 0; j < i ; ++j) {
                     //add spatial distance and time distance together as cost.
-                    int d = toricDistance(flip_locs[i], flip_locs[j]);
-                    edges.push_back({i, j ,d});
+                    double d = toricDistance(flip_locs[i], flip_locs[j]);
+                    edges.push_back({(double)i, (double)j ,d});
                 }
             }
         }
@@ -297,8 +300,8 @@ public:
         struct PerfectMatching::Options options;
         options.verbose = false;
         pm->options = options;
-        for (std::array<int,3> e: edges){
-            pm->AddEdge(e[0], e[1], e[2]);
+        for (std::array<double, 3> e: edges){
+            pm->AddEdge((int)e[0], (int)e[1], e[2]);
         }
 
         pm->Solve();
@@ -319,12 +322,12 @@ public:
 
 public:
     SurfaceCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
-                std::discrete_distribution<> Z_error_distr, int planar=0):
+                std::discrete_distribution<> Z_error_distr, int planar=0, double td_weight_ratio=1):
             n_row(n_row + planar), n_col(n_col+planar),
             primal_data((n_row+planar)/2, (n_col+planar)/2),
             dual_data((n_row+planar)/2, (n_col+planar)/2),
-            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar),
-            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar),
+            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar, td_weight_ratio),
+            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar, td_weight_ratio),
             planar(planar){
         stabiliserX.error_distr = std::move(X_error_distr);
         stabiliserZ.error_distr = std::move(Z_error_distr);
@@ -697,14 +700,16 @@ std::discrete_distribution<> readErrorTable(const char* error_table_filename){
 
 //In this function we assume the number of time steps is the same as length L.
 double averageLogicalError(int L, int n_runs, const char* X_error_table_filename, const char* Z_error_table_filename,
-        int planar, double time_step_ratio = 0.5){
+        int planar, double time_step_ratio = 0.5, double time_distance_ratio=1){
+    /*This is a function to return the number of logical error
+     * */
 //    assert(L%2 == 0);
     double logical_errors_counter = 0;
     std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
 //        surface_code.printCode();
         for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
@@ -725,22 +730,26 @@ static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
     double res;
     int planar;
     double time_step_ratio;
-    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename,
-                          &planar, &time_step_ratio))
+    double time_distance_ratio;
+    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename,
+                          &planar, &time_step_ratio, &time_distance_ratio))
         return nullptr;
-    res = averageLogicalError(L, n_runs, X_error_table_filename, Z_error_table_filename, planar, time_step_ratio);
+    res = averageLogicalError(L, n_runs, X_error_table_filename, Z_error_table_filename, planar, time_step_ratio,
+                              time_distance_ratio);
     return PyFloat_FromDouble(res);
 }
 
 std::array<double, 5> averageLogicalErrorArray(int L, int n_runs, const char* X_error_table_filename,
                                                const char* Z_error_table_filename, int planar,
-                                               double time_step_ratio = 0.5){
+                                               double time_step_ratio = 0.5, double time_distance_ratio=1){
+    /*This is a function to return array contains the number of logical error, X logical error and Z logical error
+     * */
     std::array<double, 5> logical_errors_counter {{0, 0, 0, 0, 0}};
     std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
 //        surface_code.printCode();
         for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
@@ -768,11 +777,12 @@ static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
     const char* Z_error_table_filename;
     int planar;
     double time_step_ratio;
-    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename, &planar,
-                          &time_step_ratio))
+    double time_distance_ratio;
+    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename, &planar,
+                          &time_step_ratio, &time_distance_ratio))
         return nullptr;
     std::array<double, 5> res = averageLogicalErrorArray(L, n_runs, X_error_table_filename, Z_error_table_filename,
-                                                         planar, time_step_ratio);
+                                                         planar, time_step_ratio, time_distance_ratio);
     PyObject* res_pytuple = PyTuple_New(5);
     for (int i=0; i<5; ++i){
         PyTuple_SetItem(res_pytuple, i, Py_BuildValue("d", res[i]));
@@ -782,14 +792,17 @@ static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
 
 
 double averagePhysicalError(int L, int n_runs, const char* X_error_table_filename,
-                            const char* Z_error_table_filename, int planar, double time_step_ratio = 0.5){
+                            const char* Z_error_table_filename, int planar, double time_step_ratio = 0.5,
+                            double time_distance_ratio=1){
+    /*This is a function to return the number of failed parity checks in the stabiliser
+     * */
 //    assert(L%2 == 0);
     int physical_errors_counter = 0;
     std::discrete_distribution<> X_error_distr = readErrorTable(X_error_table_filename);
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar);
+        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
 //        surface_code.printCode();
         for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
@@ -810,11 +823,12 @@ static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
     double res;
     int planar;
     double time_step_ratio;
-    if (!PyArg_ParseTuple(args, "iissid", &L, &n_runs, &X_error_table_filename,
-                          &Z_error_table_filename, &planar, &time_step_ratio))
+    double time_distance_ratio;
+    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename,
+                          &Z_error_table_filename, &planar, &time_step_ratio, &time_distance_ratio))
         return nullptr;
     res = averagePhysicalError(L, n_runs, X_error_table_filename,
-                               Z_error_table_filename, planar, time_step_ratio);
+                               Z_error_table_filename, planar, time_step_ratio, time_distance_ratio);
     return PyFloat_FromDouble(res);
 }
 
