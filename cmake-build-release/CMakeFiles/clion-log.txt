@@ -1,45 +1,35 @@
-/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/local/Cellar/gcc/7.2.0/bin/gcc-7 -DCMAKE_CXX_COMPILER=/usr/local/Cellar/gcc/7.2.0/bin/g++-7 -G "CodeBlocks - Unix Makefiles" /Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule
-CMake Warning at /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.12/Modules/Platform/Darwin-Initialize.cmake:125 (message):
-  Ignoring CMAKE_OSX_SYSROOT value:
-
-   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk
-
-  because the directory does not exist.
-Call Stack (most recent call first):
-  /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.12/Modules/CMakeSystemSpecificInitialize.cmake:21 (include)
-  CMakeLists.txt:2 (project)
-
-
--- The C compiler identification is GNU 7.2.0
--- The CXX compiler identification is GNU 7.2.0
+/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/local/Cellar/gcc/8.2.0/bin/gcc-8 -DCMAKE_CXX_COMPILER=/usr/local/Cellar/gcc/8.2.0/bin/g++-8 -G "CodeBlocks - Unix Makefiles" /Users/fish/GoogleDrive/PhD/SurfaceCodeSimulation/SurfaceCodeModule
+-- The C compiler identification is GNU 8.2.0
+-- The CXX compiler identification is GNU 8.2.0
 -- Checking whether C compiler has -isysroot
 -- Checking whether C compiler has -isysroot - yes
 -- Checking whether C compiler supports OSX deployment target flag
 -- Checking whether C compiler supports OSX deployment target flag - yes
--- Check for working C compiler: /usr/local/Cellar/gcc/7.2.0/bin/gcc-7
--- Check for working C compiler: /usr/local/Cellar/gcc/7.2.0/bin/gcc-7 -- broken
+-- Check for working C compiler: /usr/local/Cellar/gcc/8.2.0/bin/gcc-8
+-- Check for working C compiler: /usr/local/Cellar/gcc/8.2.0/bin/gcc-8 -- broken
 CMake Error at /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.12/Modules/CMakeTestCCompiler.cmake:52 (message):
   The C compiler
 
-    "/usr/local/Cellar/gcc/7.2.0/bin/gcc-7"
+    "/usr/local/Cellar/gcc/8.2.0/bin/gcc-8"
 
   is not able to compile a simple test program.
 
   It fails with the following output:
 
-    Change Dir: /Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeTmp
+    Change Dir: /Users/fish/GoogleDrive/PhD/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeTmp
     
-    Run Build Command:"/usr/bin/make" "cmTC_706f3/fast"
-    /Applications/Xcode.app/Contents/Developer/usr/bin/make -f CMakeFiles/cmTC_706f3.dir/build.make CMakeFiles/cmTC_706f3.dir/build
-    Building C object CMakeFiles/cmTC_706f3.dir/testCCompiler.c.o
-    /usr/local/Cellar/gcc/7.2.0/bin/gcc-7    -o CMakeFiles/cmTC_706f3.dir/testCCompiler.c.o   -c /Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeTmp/testCCompiler.c
-    Linking C executable cmTC_706f3
-    /Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -E cmake_link_script CMakeFiles/cmTC_706f3.dir/link.txt --verbose=1
-    /usr/local/Cellar/gcc/7.2.0/bin/gcc-7   -Wl,-search_paths_first -Wl,-headerpad_max_install_names   CMakeFiles/cmTC_706f3.dir/testCCompiler.c.o  -o cmTC_706f3 
-    ld: library not found for -lSystem
-    collect2: error: ld returned 1 exit status
-    make[1]: *** [cmTC_706f3] Error 1
-    make: *** [cmTC_706f3/fast] Error 2
+    Run Build Command:"/usr/bin/make" "cmTC_dee63/fast"
+    /Applications/Xcode.app/Contents/Developer/usr/bin/make -f CMakeFiles/cmTC_dee63.dir/build.make CMakeFiles/cmTC_dee63.dir/build
+    Building C object CMakeFiles/cmTC_dee63.dir/testCCompiler.c.o
+    /usr/local/Cellar/gcc/8.2.0/bin/gcc-8   -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk   -o CMakeFiles/cmTC_dee63.dir/testCCompiler.c.o   -c /Users/fish/GoogleDrive/PhD/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeTmp/testCCompiler.c
+    Linking C executable cmTC_dee63
+    /Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -E cmake_link_script CMakeFiles/cmTC_dee63.dir/link.txt --verbose=1
+    /usr/local/Cellar/gcc/8.2.0/bin/gcc-8   -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names   CMakeFiles/cmTC_dee63.dir/testCCompiler.c.o  -o cmTC_dee63 
+    collect2: fatal error: /usr/local/bin/gnm returned 1 exit status
+    compilation terminated.
+    make[1]: *** [cmTC_dee63] Error 1
+    make[1]: *** Deleting file `cmTC_dee63'
+    make: *** [cmTC_dee63/fast] Error 2
     
 
   
@@ -50,5 +40,5 @@ Call Stack (most recent call first):
 
 
 -- Configuring incomplete, errors occurred!
-See also "/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeOutput.log".
-See also "/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeError.log".
+See also "/Users/fish/GoogleDrive/PhD/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeOutput.log".
+See also "/Users/fish/GoogleDrive/PhD/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/CMakeError.log".

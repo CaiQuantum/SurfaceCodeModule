@@ -1,3 +1,0 @@
-/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/rebuild_cache.dir
-/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/edit_cache.dir
-/Users/fish/GoogleDrive/PhDYear1/SurfaceCodeSimulation/SurfaceCodeModule/cmake-build-release/CMakeFiles/SurfaceCode.dir
