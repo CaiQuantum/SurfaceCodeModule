@@ -321,18 +321,15 @@ public:
     int planar;
 
 public:
-    SurfaceCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
+    SurfaceCode(int d_hor, int d_ver, std::discrete_distribution<> X_error_distr,
                 std::discrete_distribution<> Z_error_distr, int planar=0, double td_weight_ratio=1):
-            n_row(n_row + planar), n_col(n_col+planar),
-            primal_data((n_row+planar)/2, (n_col+planar)/2),
-            dual_data((n_row+planar)/2, (n_col+planar)/2),
-            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar, td_weight_ratio),
-            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar, td_weight_ratio),
+            n_row(d_ver * 2), n_col(d_hor * 2),
+            primal_data(d_ver, d_hor), dual_data(d_ver, d_hor),
+            stabiliserX(d_ver, d_hor, X_STB, {1, 0}, planar, td_weight_ratio),
+            stabiliserZ(d_ver, d_hor, Z_STB, {0, 1}, planar, td_weight_ratio),
             planar(planar){
         stabiliserX.error_distr = std::move(X_error_distr);
         stabiliserZ.error_distr = std::move(Z_error_distr);
-        assert((n_row+planar)%2==0);
-        assert((n_col+planar)%2==0);
     }
 
     int& code(int row, int col){
@@ -699,8 +696,9 @@ std::discrete_distribution<> readErrorTable(const char* error_table_filename){
 
 
 //In this function we assume the number of time steps is the same as length L.
-double averageLogicalError(int L, int n_runs, const char* X_error_table_filename, const char* Z_error_table_filename,
-        int planar, double time_step_ratio = 0.5, double time_distance_ratio=1){
+double averageLogicalError(int code_distance, int n_runs, const char* X_error_table_filename,
+                           const char* Z_error_table_filename, int planar,
+                           double time_step_ratio = 0.5, double time_distance_ratio=1){
     /*This is a function to return the number of logical error
      * */
 //    assert(L%2 == 0);
@@ -709,9 +707,10 @@ double averageLogicalError(int L, int n_runs, const char* X_error_table_filename
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
+        SurfaceCode surface_code(code_distance, code_distance, X_error_distr, Z_error_distr, planar,
+                                 time_distance_ratio);
 //        surface_code.printCode();
-        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+        for (int t = 0; t < (2 * code_distance) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
         }
         surface_code.timeStep(true); // the last argument true means it is the last step
@@ -723,7 +722,7 @@ double averageLogicalError(int L, int n_runs, const char* X_error_table_filename
 
 
 static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
-    int L;
+    int code_distance;
     int n_runs;
     const char* X_error_table_filename;
     const char* Z_error_table_filename;
@@ -731,15 +730,15 @@ static PyObject * _averageLogicalError(PyObject *self, PyObject *args) {
     int planar;
     double time_step_ratio;
     double time_distance_ratio;
-    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename,
+    if (!PyArg_ParseTuple(args, "iissidd", &code_distance, &n_runs, &X_error_table_filename, &Z_error_table_filename,
                           &planar, &time_step_ratio, &time_distance_ratio))
         return nullptr;
-    res = averageLogicalError(L, n_runs, X_error_table_filename, Z_error_table_filename, planar, time_step_ratio,
+    res = averageLogicalError(code_distance, n_runs, X_error_table_filename, Z_error_table_filename, planar, time_step_ratio,
                               time_distance_ratio);
     return PyFloat_FromDouble(res);
 }
 
-std::array<double, 5> averageLogicalErrorArray(int L, int n_runs, const char* X_error_table_filename,
+std::array<double, 5> averageLogicalErrorArray(int code_distance, int n_runs, const char* X_error_table_filename,
                                                const char* Z_error_table_filename, int planar,
                                                double time_step_ratio = 0.5, double time_distance_ratio=1){
     /*This is a function to return array contains the number of logical error, X logical error and Z logical error
@@ -749,9 +748,9 @@ std::array<double, 5> averageLogicalErrorArray(int L, int n_runs, const char* X_
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
+        SurfaceCode surface_code(code_distance, code_distance, X_error_distr, Z_error_distr, planar, time_distance_ratio);
 //        surface_code.printCode();
-        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+        for (int t = 0; t < (2 * code_distance) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
         }
         surface_code.timeStep(true); // the last argument true means it is the last step
@@ -771,17 +770,17 @@ std::array<double, 5> averageLogicalErrorArray(int L, int n_runs, const char* X_
 }
 
 static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
-    int L;
+    int code_distance;
     int n_runs;
     const char* X_error_table_filename;
     const char* Z_error_table_filename;
     int planar;
     double time_step_ratio;
     double time_distance_ratio;
-    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename, &Z_error_table_filename, &planar,
+    if (!PyArg_ParseTuple(args, "iissidd", &code_distance, &n_runs, &X_error_table_filename, &Z_error_table_filename, &planar,
                           &time_step_ratio, &time_distance_ratio))
         return nullptr;
-    std::array<double, 5> res = averageLogicalErrorArray(L, n_runs, X_error_table_filename, Z_error_table_filename,
+    std::array<double, 5> res = averageLogicalErrorArray(code_distance, n_runs, X_error_table_filename, Z_error_table_filename,
                                                          planar, time_step_ratio, time_distance_ratio);
     PyObject* res_pytuple = PyTuple_New(5);
     for (int i=0; i<5; ++i){
@@ -791,7 +790,7 @@ static PyObject * _averageLogicalErrorArray(PyObject *self, PyObject *args) {
 }
 
 
-double averagePhysicalError(int L, int n_runs, const char* X_error_table_filename,
+double averagePhysicalError(int code_distance, int n_runs, const char* X_error_table_filename,
                             const char* Z_error_table_filename, int planar, double time_step_ratio = 0.5,
                             double time_distance_ratio=1){
     /*This is a function to return the number of failed parity checks in the stabiliser
@@ -802,9 +801,9 @@ double averagePhysicalError(int L, int n_runs, const char* X_error_table_filenam
     std::discrete_distribution<> Z_error_distr = readErrorTable(Z_error_table_filename);
 
     for (int i = 0; i < n_runs; ++i) {
-        SurfaceCode surface_code(L, L, X_error_distr, Z_error_distr, planar, time_distance_ratio);
+        SurfaceCode surface_code(code_distance, code_distance, X_error_distr, Z_error_distr, planar, time_distance_ratio);
 //        surface_code.printCode();
-        for (int t = 0; t < (L + planar) * time_step_ratio; ++t) {
+        for (int t = 0; t < (2 * code_distance) * time_step_ratio; ++t) {
             surface_code.timeStep(false);
         }
         surface_code.timeStep(true); // the last argument true means it is the last step
@@ -816,7 +815,7 @@ double averagePhysicalError(int L, int n_runs, const char* X_error_table_filenam
 
 
 static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
-    int L;
+    int code_distance;
     int n_runs;
     const char* X_error_table_filename;
     const char* Z_error_table_filename;
@@ -824,10 +823,10 @@ static PyObject * _averagePhysicalError(PyObject *self, PyObject *args) {
     int planar;
     double time_step_ratio;
     double time_distance_ratio;
-    if (!PyArg_ParseTuple(args, "iissidd", &L, &n_runs, &X_error_table_filename,
+    if (!PyArg_ParseTuple(args, "iissidd", &code_distance, &n_runs, &X_error_table_filename,
                           &Z_error_table_filename, &planar, &time_step_ratio, &time_distance_ratio))
         return nullptr;
-    res = averagePhysicalError(L, n_runs, X_error_table_filename,
+    res = averagePhysicalError(code_distance, n_runs, X_error_table_filename,
                                Z_error_table_filename, planar, time_step_ratio, time_distance_ratio);
     return PyFloat_FromDouble(res);
 }
