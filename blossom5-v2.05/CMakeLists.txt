@@ -6,7 +6,7 @@ IF(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -v -stdlib=libc++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 
 add_library(blossom
 MinCost/MinCost.cpp

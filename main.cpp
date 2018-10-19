@@ -146,15 +146,15 @@ public:
     std::discrete_distribution<> error_distr;
     std::array<int,2> loc_in_toric;
     int planar;
-    double time_distance_ratio;
+    double td_weight_ratio;
     int t = 0;
     int n_error=0; //number of errors in stb excluding boundary stb errors
 
 public:
     Stabiliser(int n_row, int n_col, StabiliserType stabiliser_type, std::array<int,2> loc_in_toric, int planar=0,
-               double time_distance_ratio=1):
+               double td_weight_ratio=1):
             Code(n_row, n_col), stabiliser_type(stabiliser_type), loc_in_toric(loc_in_toric), planar(planar),
-            time_distance_ratio(time_distance_ratio){
+            td_weight_ratio(td_weight_ratio){
         std::array<double,512> error_prob{};
         error_prob[0] = 1;
         std::discrete_distribution<> error_distr(error_prob.begin(), error_prob.end());
@@ -210,7 +210,7 @@ public:
         // we create d here to reduce the need to access element of loc, hence increasing ths speed
         int d0 = abs(loc1[0] - loc2[0]);
         int d1 = abs(loc1[1] - loc2[1]);
-        double d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + time_distance_ratio * abs(loc1[2] - loc2[2]);
+        double d = std::min(d0, n_row - d0) + std::min(d1, n_col - d1) + td_weight_ratio * abs(loc1[2] - loc2[2]);
         return d;
     }
 
@@ -219,10 +219,10 @@ public:
         int d1 = abs(loc1[1] - loc2[1]);
         double d;
         if (loc_in_toric[0] == 1){
-            d = std::min(d0, n_row - d0) + d1 + time_distance_ratio * abs(loc1[2] - loc2[2]);
+            d = std::min(d0, n_row - d0) + d1 + td_weight_ratio * abs(loc1[2] - loc2[2]);
         }
         else {
-            d = d0 + std::min(d1, n_col - d1) + time_distance_ratio * abs(loc1[2] - loc2[2]);
+            d = d0 + std::min(d1, n_col - d1) + td_weight_ratio * abs(loc1[2] - loc2[2]);
         }
         return d;
     }
@@ -322,12 +322,12 @@ public:
 
 public:
     SurfaceCode(int n_row, int n_col, std::discrete_distribution<> X_error_distr,
-                std::discrete_distribution<> Z_error_distr, int planar=0, double time_distance_ratio=1):
+                std::discrete_distribution<> Z_error_distr, int planar=0, double td_weight_ratio=1):
             n_row(n_row + planar), n_col(n_col+planar),
             primal_data((n_row+planar)/2, (n_col+planar)/2),
             dual_data((n_row+planar)/2, (n_col+planar)/2),
-            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar, time_distance_ratio),
-            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar, time_distance_ratio),
+            stabiliserX((n_row+planar)/2, (n_col+planar)/2, X_STB, {1, 0}, planar, td_weight_ratio),
+            stabiliserZ((n_row+planar)/2, (n_col+planar)/2, Z_STB, {0, 1}, planar, td_weight_ratio),
             planar(planar){
         stabiliserX.error_distr = std::move(X_error_distr);
         stabiliserZ.error_distr = std::move(Z_error_distr);
